@@ -1,0 +1,350 @@
+{
+  "info": {
+    "name": "Store SaaS API",
+    "description": "Postman collection for the multi-tenant SaaS store API including Super Admin and Store Owner endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "YOUR_BEARER_TOKEN_HERE",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@admin.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Super Admin",
+      "item": [
+        {
+          "name": "Get Me",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/me", "host": ["{{base_url}}"], "path": ["admin", "me"] }
+          }
+        },
+        {
+          "name": "List Stores",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/stores", "host": ["{{base_url}}"], "path": ["admin", "stores"] }
+          }
+        },
+        {
+          "name": "Create Store",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"متجر تجريبي\",\n  \"owner_name\": \"صاحب المتجر\",\n  \"email\": \"test_store@ayad.com\",\n  \"phone\": \"0500000000\",\n  \"address\": \"الرياض\",\n  \"password\": \"password\",\n  \"password_confirmation\": \"password\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/admin/stores", "host": ["{{base_url}}"], "path": ["admin", "stores"] }
+          }
+        },
+        {
+          "name": "Activate Store",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/stores/1/activate", "host": ["{{base_url}}"], "path": ["admin", "stores", "1", "activate"] }
+          }
+        },
+        {
+          "name": "Deactivate Store",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/admin/stores/1/deactivate", "host": ["{{base_url}}"], "path": ["admin", "stores", "1", "deactivate"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Store Owner",
+      "item": [
+        {
+          "name": "Categories",
+          "item": [
+            {
+              "name": "List Categories",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/categories", "host": ["{{base_url}}"], "path": ["store", "categories"] }
+              }
+            },
+            {
+              "name": "Create Category",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"name\": \"مبيدات حشرية\"\n}" },
+                "url": { "raw": "{{base_url}}/store/categories", "host": ["{{base_url}}"], "path": ["store", "categories"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Products",
+          "item": [
+            {
+              "name": "List Products",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/products", "host": ["{{base_url}}"], "path": ["store", "products"] }
+              }
+            },
+            {
+              "name": "Create Product",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"category_id\": 1,\n  \"name\": \"سماد مخصص\",\n  \"sku\": \"PROD-001\",\n  \"unit\": \"كيس\",\n  \"purchase_price\": 100,\n  \"sale_price\": 150,\n  \"low_stock_threshold\": 10\n}" },
+                "url": { "raw": "{{base_url}}/store/products", "host": ["{{base_url}}"], "path": ["store", "products"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customers",
+          "item": [
+            {
+              "name": "List Customers",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/customers", "host": ["{{base_url}}"], "path": ["store", "customers"] }
+              }
+            },
+            {
+              "name": "Create Customer",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"name\": \"عميل جديد\",\n  \"phone\": \"0555555555\",\n  \"address\": \"الرياض\"\n}" },
+                "url": { "raw": "{{base_url}}/store/customers", "host": ["{{base_url}}"], "path": ["store", "customers"] }
+              }
+            },
+            {
+              "name": "Customer Statement",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/customers/1/statement", "host": ["{{base_url}}"], "path": ["store", "customers", "1", "statement"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Suppliers",
+          "item": [
+            {
+              "name": "List Suppliers",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/suppliers", "host": ["{{base_url}}"], "path": ["store", "suppliers"] }
+              }
+            },
+            {
+              "name": "Create Supplier",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"name\": \"مورد جديد\",\n  \"phone\": \"0555555555\",\n  \"address\": \"الدمام\"\n}" },
+                "url": { "raw": "{{base_url}}/store/suppliers", "host": ["{{base_url}}"], "path": ["store", "suppliers"] }
+              }
+            },
+            {
+              "name": "Supplier Statement",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/suppliers/1/statement", "host": ["{{base_url}}"], "path": ["store", "suppliers", "1", "statement"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sales Invoices",
+          "item": [
+            {
+              "name": "List Sales Invoices",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/sales-invoices", "host": ["{{base_url}}"], "path": ["store", "sales-invoices"] }
+              }
+            },
+            {
+              "name": "Create Sales Invoice",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customer_id\": 1,\n  \"paid_amount\": 100,\n  \"notes\": \"بيان بيع\",\n  \"items\": [\n    {\n      \"product_id\": 1,\n      \"quantity\": 2,\n      \"unit_price\": 150\n    }\n  ]\n}"
+                },
+                "url": { "raw": "{{base_url}}/store/sales-invoices", "host": ["{{base_url}}"], "path": ["store", "sales-invoices"] }
+              }
+            },
+            {
+              "name": "Cancel Sales Invoice",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"reason\": \"إرجاع العميل للطلب بالكامل\"\n}" },
+                "url": { "raw": "{{base_url}}/store/sales-invoices/1/cancel", "host": ["{{base_url}}"], "path": ["store", "sales-invoices", "1", "cancel"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Purchase Invoices",
+          "item": [
+            {
+              "name": "List Purchase Invoices",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/purchase-invoices", "host": ["{{base_url}}"], "path": ["store", "purchase-invoices"] }
+              }
+            },
+            {
+              "name": "Create Purchase Invoice",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"supplier_id\": 1,\n  \"paid_amount\": 0,\n  \"notes\": \"استلام شحنة\",\n  \"items\": [\n    {\n      \"product_id\": 1,\n      \"ordered_quantity\": 100,\n      \"received_quantity\": 100,\n      \"unit_price\": 100\n    }\n  ]\n}"
+                },
+                "url": { "raw": "{{base_url}}/store/purchase-invoices", "host": ["{{base_url}}"], "path": ["store", "purchase-invoices"] }
+              }
+            },
+            {
+              "name": "Cancel Purchase Invoice",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"reason\": \"رد الشحنة لوجود عيوب\"\n}" },
+                "url": { "raw": "{{base_url}}/store/purchase-invoices/1/cancel", "host": ["{{base_url}}"], "path": ["store", "purchase-invoices", "1", "cancel"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payments",
+          "item": [
+            {
+              "name": "Collect From Customer (سند قبض)",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"party_id\": 1,\n  \"amount\": 500,\n  \"notes\": \"دفعة من حساب\"\n}" },
+                "url": { "raw": "{{base_url}}/store/payments/customer", "host": ["{{base_url}}"], "path": ["store", "payments", "customer"] }
+              }
+            },
+            {
+              "name": "Pay To Supplier (سند صرف)",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"party_id\": 1,\n  \"amount\": 1000,\n  \"notes\": \"سداد دفعة للمورد\"\n}" },
+                "url": { "raw": "{{base_url}}/store/payments/supplier", "host": ["{{base_url}}"], "path": ["store", "payments", "supplier"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cash",
+          "item": [
+            {
+              "name": "Set Opening Balance",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "POST",
+                "header": [{ "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"amount\": 50000\n}" },
+                "url": { "raw": "{{base_url}}/store/cash/opening-balance", "host": ["{{base_url}}"], "path": ["store", "cash", "opening-balance"] }
+              }
+            },
+            {
+              "name": "Current Balance",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/cash/balance", "host": ["{{base_url}}"], "path": ["store", "cash", "balance"] }
+              }
+            },
+            {
+              "name": "Daily Cash Report",
+              "request": {
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+                "method": "GET",
+                "header": [{ "key": "Accept", "value": "application/json" }],
+                "url": { "raw": "{{base_url}}/store/cash/daily-report?date=2024-01-01", "host": ["{{base_url}}"], "path": ["store", "cash", "daily-report"], "query": [{ "key": "date", "value": "2024-01-01" }] }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
