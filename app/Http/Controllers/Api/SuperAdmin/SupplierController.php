@@ -86,7 +86,11 @@ class SupplierController extends Controller
 
     public function update(UpdateSupplierRequest $request, int $id): JsonResponse
     {
-        $supplier = $this->supplierService->update($id, $request->validated());
+        $supplier = $this->supplierService->update(
+            $id,
+            $request->validated(),
+            Auth::user()->getStoreId()
+        );
 
         return response()->json([
             'message'  => 'تم تعديل بيانات المورد.',

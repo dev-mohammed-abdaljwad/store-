@@ -68,7 +68,7 @@ class PurchaseInvoiceController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $invoice = PurchaseInvoice::with('items.product', 'supplier', 'createdBy')
+        $invoice = PurchaseInvoice::with('items.product', 'items.variant', 'supplier', 'createdBy')
             ->findOrFail($id);
 
         return response()->json($invoice);

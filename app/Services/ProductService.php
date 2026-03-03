@@ -3,7 +3,9 @@ namespace App\Services;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\ValidationException;
 
 class ProductService
@@ -14,14 +16,9 @@ class ProductService
     {
         return DB::transaction(function () use ($data, $storeId) {
             $product = Product::create([
-                'store_id'            => $storeId,
-                'category_id'         => $data['category_id'],
-                'name'                => $data['name'],
-                'sku'                 => $data['sku'] ?? null,
-                'unit'                => $data['unit'],
-                'purchase_price'      => $data['purchase_price'] ?? 0,
-                'sale_price'          => $data['sale_price'] ?? 0,
-                'low_stock_threshold' => $data['low_stock_threshold'] ?? 0,
+                'store_id'    => $storeId,
+                'category_id' => $data['category_id'],
+                'name'        => $data['name'],
             ]);
 
             Category::query()
@@ -33,6 +30,62 @@ class ProductService
 
             return $product;
         });
+    }
+
+    public function addVariant(int $productId, array $data, int $storeId): ProductVariant
+    {
+        Product::where('store_id', $storeId)->findOrFail($productId);
+
+        return DB::transaction(function () use ($productId, $data, $storeId) {
+            $variant = ProductVariant::create([
+                'store_id' => $storeId,
+                'product_id' => $productId,
+                'name' => $data['name'],
+                'sku' => $data['sku'] ?? null,
+                'purchase_price' => $data['purchase_price'],
+                'sale_price' => $data['sale_price'],
+                'low_stock_threshold' => $data['low_stock_threshold'] ?? 0,
+                'is_active' => $data['is_active'] ?? true,
+            ]);
+
+            $this->cacheService->invalidateProductsDropdown($storeId);
+
+            return $variant;
+        });
+    }
+
+    public function updateVariant(int $variantId, array $data, int $storeId): ProductVariant
+    {
+        $variant = ProductVariant::where('store_id', $storeId)->findOrFail($variantId);
+
+        return DB::transaction(function () use ($variant, $data, $storeId) {
+            $variant->update([
+                'name' => $data['name'] ?? $variant->name,
+                'sku' => $data['sku'] ?? $variant->sku,
+                'purchase_price' => $data['purchase_price'] ?? $variant->purchase_price,
+                'sale_price' => $data['sale_price'] ?? $variant->sale_price,
+                'low_stock_threshold' => $data['low_stock_threshold'] ?? $variant->low_stock_threshold,
+                'is_active' => $data['is_active'] ?? $variant->is_active,
+            ]);
+
+            $this->cacheService->invalidateProductsDropdown($storeId);
+
+            return $variant->fresh();
+        });
+    }
+
+    public function deleteVariant(int $variantId, int $storeId): void
+    {
+        $variant = ProductVariant::where('store_id', $storeId)->findOrFail($variantId);
+
+        if ($variant->stockMovements()->exists()) {
+            throw ValidationException::withMessages([
+                'variant' => 'لا يمكن حذف هذا الحجم — له حركات مخزون مسجلة.',
+            ]);
+        }
+
+        $variant->delete();
+        $this->cacheService->invalidateProductsDropdown($storeId);
     }
 
     public function update(int $id, array $data): Product
@@ -98,24 +151,32 @@ class ProductService
     /**
      * قائمة المنتجات مع المخزون الحالي وتنبيه الانخفاض.
      */
-    public function listWithStock(int $storeId): array
+    public function listWithStock(int $storeId, int $perPage = 10, bool $withTotal = false): LengthAwarePaginator
     {
-        $products = Product::with('category')
-                           ->where('store_id', $storeId)
-                           ->get();
+        $products = Product::with(['category:id,name', 'variants'])
+            ->where('store_id', $storeId)
+            ->orderBy('name');
 
-        return $products->map(function (Product $p) {
+        $paginated = ($withTotal ? $products->paginate($perPage) : $products->paginate($perPage))->withQueryString();
+
+        $transformed = $paginated->getCollection()->map(function (Product $p) {
             return [
-                'id'                  => $p->id,
-                'name'                => $p->name,
-                'sku'                 => $p->sku,
-                'category'            => $p->category->name,
-                'unit'                => $p->unit,
-                'sale_price'          => $p->sale_price,
-                'current_stock'       => $p->current_stock,
-                'low_stock_threshold' => $p->low_stock_threshold,
-                'is_low_stock'        => $p->isLowStock(),
+                'id' => $p->id,
+                'name' => $p->name,
+                'category' => $p->category?->name,
+                'variants' => $p->variants->map(fn(ProductVariant $v) => [
+                    'id' => $v->id,
+                    'name' => $v->name,
+                    'sku' => $v->sku,
+                    'purchase_price' => $v->purchase_price,
+                    'sale_price' => $v->sale_price,
+                    'current_stock' => $v->current_stock,
+                    'low_stock_threshold' => $v->low_stock_threshold,
+                    'is_low_stock' => $v->isLowStock(),
+                ])->values(),
             ];
-        })->toArray();
+        });
+
+        return $paginated->setCollection($transformed);
     }
 }

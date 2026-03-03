@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\CacheService;
 use App\Models\Traits\BelongsToStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,17 +16,6 @@ class Product extends Model
         'store_id',
         'category_id',
         'name',
-        'sku',
-        'unit',
-        'purchase_price',
-        'sale_price',
-        'low_stock_threshold',
-    ];
-
-    protected $casts = [
-        'purchase_price'     => 'float',
-        'sale_price'         => 'float',
-        'low_stock_threshold' => 'integer',
     ];
 
     // ── Relationships ────────────────────────────────────────────
@@ -42,33 +30,13 @@ class Product extends Model
         return $this->hasMany(StockMovement::class);
     }
 
-    // ── Stock Helpers ────────────────────────────────────────────
-
-    /**
-     * المخزون الحالي = SUM(in) - SUM(out) من stock_movements
-     */
-    public function getCurrentStockAttribute(): float
+    public function variants(): HasMany
     {
-        return app(CacheService::class)->getStock((int) $this->store_id, (int) $this->id);
+        return $this->hasMany(ProductVariant::class)->where('is_active', true);
     }
 
-    /**
-     * هل يمكن بيع الكمية المطلوبة؟
-     */
-    public function canSell(float $quantity): bool
+    public function allVariants(): HasMany
     {
-        return $this->current_stock >= $quantity;
-    }
-
-    /**
-     * هل المخزون منخفض (أقل من أو يساوي حد التنبيه)؟
-     */
-    public function isLowStock(): bool
-    {
-        if ($this->low_stock_threshold <= 0) {
-            return false;
-        }
-
-        return $this->current_stock <= $this->low_stock_threshold;
+        return $this->hasMany(ProductVariant::class);
     }
 }

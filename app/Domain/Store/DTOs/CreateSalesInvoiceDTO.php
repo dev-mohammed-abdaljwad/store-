@@ -18,7 +18,7 @@ final class CreateSalesInvoiceDTO
     {
         $items = array_map(
             fn(array $i) => new InvoiceItemDTO(
-                productId: $i['product_id'],
+                variantId: (int) $i['variant_id'],
                 quantity: (float) $i['quantity'],
                 unitPrice: (float) $i['unit_price'],
             ),

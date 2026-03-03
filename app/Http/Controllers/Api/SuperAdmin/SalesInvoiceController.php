@@ -80,7 +80,7 @@ class SalesInvoiceController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $invoice = SalesInvoice::with('items.product', 'customer', 'createdBy')
+        $invoice = SalesInvoice::with('items.product', 'items.variant', 'customer', 'createdBy')
             ->findOrFail($id);
 
         return response()->json($invoice);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Category\StoreCategoryRequest;
 use App\Http\Requests\Api\V1\Product\StoreProductRequest;
+use App\Http\Requests\Api\V1\Product\StoreVariantRequest;
 use App\Http\Requests\Api\V1\Product\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
@@ -14,7 +15,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -30,53 +30,36 @@ class ProductController extends Controller
         $storeId = Auth::user()->getStoreId();
 
         $productsQuery = Product::query()
-            ->with('category:id,name')
+            ->with(['category:id,name', 'variants'])
             ->when(
                 $request->filled('search'),
                 fn($q) => $q->where(function ($query) use ($request) {
                     $query->where('name', 'like', '%' . $request->search . '%')
-                          ->orWhere('sku', 'like', '%' . $request->search . '%');
+                        ->orWhereHas('allVariants', fn($v) => $v->where('sku', 'like', '%' . $request->search . '%'));
                 })
             )
             ->when($request->filled('category_id'), fn($q) => $q->where('category_id', $request->category_id))
             ->orderBy('name');
 
-        $products = ($withTotal
-            ? $productsQuery->paginate($perPage)
-            : $productsQuery->simplePaginate($perPage))
+        $products = ($withTotal ? $productsQuery->paginate($perPage) : $productsQuery->simplePaginate($perPage))
             ->withQueryString();
 
-        $productIds = $products->getCollection()->pluck('id')->all();
-
-        $stockTotals = empty($productIds)
-            ? collect()
-            : DB::table('stock_movements')
-                ->selectRaw('product_id')
-                ->selectRaw("COALESCE(SUM(CASE WHEN type = 'in' THEN quantity ELSE 0 END), 0) AS stock_in")
-                ->selectRaw("COALESCE(SUM(CASE WHEN type = 'out' THEN quantity ELSE 0 END), 0) AS stock_out")
-                ->where('store_id', $storeId)
-                ->whereIntegerInRaw('product_id', $productIds)
-                ->groupBy('product_id')
-                ->get()
-                ->keyBy('product_id');
-
         $products->setCollection(
-            $products->getCollection()->map(function (Product $product) use ($stockTotals) {
-                $stock = $stockTotals->get($product->id);
-                $stockIn = (float) ($stock->stock_in ?? 0);
-                $stockOut = (float) ($stock->stock_out ?? 0);
-                $currentStock = round($stockIn - $stockOut, 3);
-
+            $products->getCollection()->map(function (Product $product) {
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
-                    'sku' => $product->sku,
                     'category' => $product->category?->name,
-                    'unit' => $product->unit,
-                    'sale_price' => $product->sale_price,
-                    'current_stock' => $currentStock,
-                    'low_stock_threshold' => $product->low_stock_threshold,
-                    'is_low_stock' => $product->low_stock_threshold > 0 && $currentStock <= $product->low_stock_threshold,
+                    'variants' => $product->variants->map(fn($variant) => [
+                        'id' => $variant->id,
+                        'name' => $variant->name,
+                        'sku' => $variant->sku,
+                        'purchase_price' => $variant->purchase_price,
+                        'sale_price' => $variant->sale_price,
+                        'current_stock' => $variant->current_stock,
+                        'low_stock_threshold' => $variant->low_stock_threshold,
+                        'is_low_stock' => $variant->isLowStock(),
+                    ])->values(),
                 ];
             })
         );
@@ -115,6 +98,56 @@ class ProductController extends Controller
         $this->productService->delete($id);
 
         return response()->json(['message' => 'تم حذف المنتج.']);
+    }
+
+    public function storeVariant(StoreVariantRequest $request, int $productId): JsonResponse
+    {
+        $variant = $this->productService->addVariant(
+            productId: $productId,
+            data: $request->validated(),
+            storeId: Auth::user()->getStoreId(),
+        );
+
+        return response()->json([
+            'message' => 'تم إضافة الحجم بنجاح.',
+            'variant' => $variant,
+        ], 201);
+    }
+
+    public function updateVariant(StoreVariantRequest $request, int $productId, int $variantId): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+        Product::where('store_id', $storeId)->findOrFail($productId);
+
+        $variant = $this->productService->updateVariant(
+            variantId: $variantId,
+            data: $request->validated(),
+            storeId: $storeId,
+        );
+
+        return response()->json([
+            'message' => 'تم تعديل الحجم.',
+            'variant' => $variant,
+        ]);
+    }
+
+    public function destroyVariant(int $productId, int $variantId): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+        Product::where('store_id', $storeId)->findOrFail($productId);
+
+        $this->productService->deleteVariant($variantId, $storeId);
+
+        return response()->json(['message' => 'تم حذف الحجم.']);
+    }
+
+    public function dropdown(): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+
+        return response()->json([
+            'items' => $this->productService->listForDropdown($storeId),
+        ]);
     }
 
     // ── Categories ───────────────────────────────────────────────

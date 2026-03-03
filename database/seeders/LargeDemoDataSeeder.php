@@ -81,7 +81,7 @@ class LargeDemoDataSeeder extends Seeder
         ]);
 
         $categoryIds = $this->seedCategories($storeId, $now);
-        [$productStartId, $productEndId] = $this->seedProducts($storeId, $categoryIds, $now);
+        [$productStartId, $productEndId, $variantStartId, $variantsPerProduct] = $this->seedProducts($storeId, $categoryIds, $now);
         [$customerStartId, $customerEndId] = $this->seedCustomers($storeId, $now);
         [$supplierStartId, $supplierEndId] = $this->seedSuppliers($storeId, $now);
 
@@ -92,6 +92,8 @@ class LargeDemoDataSeeder extends Seeder
             $customerEndId,
             $productStartId,
             $productEndId,
+            $variantStartId,
+            $variantsPerProduct,
             $now
         );
 
@@ -102,6 +104,8 @@ class LargeDemoDataSeeder extends Seeder
             $supplierEndId,
             $productStartId,
             $productEndId,
+            $variantStartId,
+            $variantsPerProduct,
             $now
         );
 
@@ -130,6 +134,7 @@ class LargeDemoDataSeeder extends Seeder
         DB::table('purchase_invoices')->truncate();
         DB::table('sales_invoice_items')->truncate();
         DB::table('sales_invoices')->truncate();
+        DB::table('product_variants')->truncate();
         DB::table('products')->truncate();
         DB::table('suppliers')->truncate();
         DB::table('customers')->truncate();
@@ -165,40 +170,60 @@ class LargeDemoDataSeeder extends Seeder
     private function seedProducts(int $storeId, array $categoryIds, $now): array
     {
         $startId = $this->nextId('products');
-        $units = ['قطعة', 'كجم', 'لتر', 'صندوق'];
+        $variantStartId = $this->nextId('product_variants');
+        $variantsPerProduct = 3;
         $rows = [];
+        $variantRows = [];
+        $variantNames = ['250 جرام', '1 كيلو', '5 كيلو'];
 
         for ($i = 0; $i < self::PRODUCTS_COUNT; $i++) {
             $id = $startId + $i;
-            $purchasePrice = $this->money(500, 25000);
-            $salePrice = $this->formatMoney($purchasePrice * (1 + (mt_rand(10, 45) / 100)));
 
             $rows[] = [
                 'id' => $id,
                 'store_id' => $storeId,
                 'category_id' => $categoryIds[$i % count($categoryIds)],
                 'name' => 'منتج ' . $id,
-                'sku' => 'SKU-' . str_pad((string) $id, 7, '0', STR_PAD_LEFT),
-                'unit' => $units[$i % count($units)],
-                'purchase_price' => $purchasePrice,
-                'sale_price' => $salePrice,
-                'low_stock_threshold' => mt_rand(2, 40),
                 'created_at' => $now,
                 'updated_at' => $now,
                 'deleted_at' => null,
             ];
 
+            for ($variantOffset = 0; $variantOffset < $variantsPerProduct; $variantOffset++) {
+                $variantId = $variantStartId + (($id - $startId) * $variantsPerProduct) + $variantOffset;
+                $purchasePrice = $this->money(500, 25000) * ($variantOffset + 1);
+                $salePrice = $this->formatMoney($purchasePrice * (1 + (mt_rand(10, 45) / 100)));
+
+                $variantRows[] = [
+                    'id' => $variantId,
+                    'store_id' => $storeId,
+                    'product_id' => $id,
+                    'name' => $variantNames[$variantOffset],
+                    'sku' => 'VAR-' . str_pad((string) $variantId, 8, '0', STR_PAD_LEFT),
+                    'purchase_price' => $purchasePrice,
+                    'sale_price' => $salePrice,
+                    'low_stock_threshold' => mt_rand(2, 40),
+                    'is_active' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                    'deleted_at' => null,
+                ];
+            }
+
             if (count($rows) >= self::BATCH_SIZE) {
                 DB::table('products')->insert($rows);
+                DB::table('product_variants')->insert($variantRows);
                 $rows = [];
+                $variantRows = [];
             }
         }
 
         if ($rows !== []) {
             DB::table('products')->insert($rows);
+            DB::table('product_variants')->insert($variantRows);
         }
 
-        return [$startId, $startId + self::PRODUCTS_COUNT - 1];
+        return [$startId, $startId + self::PRODUCTS_COUNT - 1, $variantStartId, $variantsPerProduct];
     }
 
     private function seedCustomers(int $storeId, $now): array
@@ -272,6 +297,8 @@ class LargeDemoDataSeeder extends Seeder
         int $customerEndId,
         int $productStartId,
         int $productEndId,
+        int $variantStartId,
+        int $variantsPerProduct,
         $now
     ): void {
         $nextInvoiceId = $this->nextId('sales_invoices');
@@ -297,12 +324,17 @@ class LargeDemoDataSeeder extends Seeder
                 $unitPrice = $this->money(500, 35000);
                 $totalPrice = $this->formatMoney($quantity * $unitPrice);
                 $productId = mt_rand($productStartId, $productEndId);
+                $variantOffset = mt_rand(0, $variantsPerProduct - 1);
+                $variantId = $variantStartId + (($productId - $productStartId) * $variantsPerProduct) + $variantOffset;
+                $variantName = ['250 جرام', '1 كيلو', '5 كيلو'][$variantOffset];
 
                 $itemRows[] = [
                     'id' => $nextItemId++,
                     'invoice_id' => $invoiceId,
                     'product_id' => $productId,
+                    'variant_id' => $variantId,
                     'product_name' => 'منتج ' . $productId,
+                    'variant_name' => $variantName,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
@@ -314,6 +346,7 @@ class LargeDemoDataSeeder extends Seeder
                     'id' => $nextStockMovementId++,
                     'store_id' => $storeId,
                     'product_id' => $productId,
+                    'variant_id' => $variantId,
                     'type' => 'out',
                     'quantity' => $quantity,
                     'reference_type' => 'sales_invoice',
@@ -412,6 +445,8 @@ class LargeDemoDataSeeder extends Seeder
         int $supplierEndId,
         int $productStartId,
         int $productEndId,
+        int $variantStartId,
+        int $variantsPerProduct,
         $now
     ): void {
         $nextInvoiceId = $this->nextId('purchase_invoices');
@@ -438,12 +473,17 @@ class LargeDemoDataSeeder extends Seeder
                 $unitPrice = $this->money(300, 22000);
                 $totalPrice = $this->formatMoney($receivedQuantity * $unitPrice);
                 $productId = mt_rand($productStartId, $productEndId);
+                $variantOffset = mt_rand(0, $variantsPerProduct - 1);
+                $variantId = $variantStartId + (($productId - $productStartId) * $variantsPerProduct) + $variantOffset;
+                $variantName = ['250 جرام', '1 كيلو', '5 كيلو'][$variantOffset];
 
                 $itemRows[] = [
                     'id' => $nextItemId++,
                     'invoice_id' => $invoiceId,
                     'product_id' => $productId,
+                    'variant_id' => $variantId,
                     'product_name' => 'منتج ' . $productId,
+                    'variant_name' => $variantName,
                     'ordered_quantity' => $orderedQuantity,
                     'received_quantity' => $receivedQuantity,
                     'unit_price' => $unitPrice,
@@ -456,6 +496,7 @@ class LargeDemoDataSeeder extends Seeder
                     'id' => $nextStockMovementId++,
                     'store_id' => $storeId,
                     'product_id' => $productId,
+                    'variant_id' => $variantId,
                     'type' => 'in',
                     'quantity' => $receivedQuantity,
                     'reference_type' => 'purchase_invoice',

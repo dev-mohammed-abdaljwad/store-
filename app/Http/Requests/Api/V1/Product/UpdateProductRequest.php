@@ -22,16 +22,12 @@ class UpdateProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category_id' => 'required|exists:categories,id',
-            'name' => 'required|string|max:255',
-            'sku' => 'nullable|string',
-            'unit' => 'nullable|string',
-            'purchase_price' => 'nullable|numeric',
-            'sale_price' => 'nullable|numeric',
-            'low_stock_threshold' => 'nullable|numeric',
+            'category_id' => ['required', 'exists:categories,id'],
+            'name' => ['required', 'string', 'max:255'],
         ];
     }
-    public function message()
+
+    public function messages(): array
     {
         return [
             'category_id.required' => 'التصنيف مطلوب',
@@ -39,11 +35,6 @@ class UpdateProductRequest extends FormRequest
             'name.required' => 'الاسم مطلوب',
             'name.string' => 'الاسم يجب أن يكون نص',
             'name.max' => 'الاسم يجب أن يكون 255 حرف',
-            'sku.string' => 'الرمز يجب أن يكون نص',
-            'unit.string' => 'الوحدة يجب أن تكون نص',
-            'purchase_price.numeric' => 'سعر الشراء يجب أن يكون رقم',
-            'sale_price.numeric' => 'سعر البيع يجب أن يكون رقم',
-            'low_stock_threshold.numeric' => 'الحد الأدنى للكمية يجب أن يكون رقم',
         ];
     }
 }

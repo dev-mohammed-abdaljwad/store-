@@ -10,9 +10,9 @@ use App\Domain\Store\Enums\StockMovementType;
 use App\Domain\Store\Enums\TransactionType;
 use App\Models\CashTransaction;
 use App\Models\FinancialTransaction;
+use App\Models\ProductVariant;
 use App\Models\SalesInvoice;
 use App\Models\SalesInvoiceItem;
-use App\Models\Product;
 use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -47,13 +47,20 @@ class SalesInvoiceService
             ]);
 
             // ── Step 4: حفظ بنود الفاتورة ─────────────────────────
+            $affectedProductIds = [];
             foreach ($dto->items as $item) {
-                $product = Product::findOrFail($item->productId);
+                $variant = ProductVariant::where('store_id', $dto->storeId)
+                    ->with('product:id,name')
+                    ->findOrFail($item->variantId);
+
+                $affectedProductIds[] = (int) $variant->product_id;
 
                 SalesInvoiceItem::create([
                     'invoice_id'   => $invoice->id,
-                    'product_id'   => $item->productId,
-                    'product_name' => $product->name,
+                    'product_id'   => $variant->product_id,
+                    'variant_id'   => $variant->id,
+                    'product_name' => $variant->product?->name,
+                    'variant_name' => $variant->name,
                     'quantity'     => $item->quantity,
                     'unit_price'   => $item->unitPrice,
                     'total_price'  => round($item->quantity * $item->unitPrice, 2),
@@ -62,7 +69,8 @@ class SalesInvoiceService
                 // ── Step 5: خصم المخزون ───────────────────────────
                 StockMovement::create([
                     'store_id'       => $dto->storeId,
-                    'product_id'     => $item->productId,
+                    'product_id'     => $variant->product_id,
+                    'variant_id'     => $variant->id,
                     'type'           => StockMovementType::OUT,
                     'quantity'       => $item->quantity,
                     'reference_type' => 'sales_invoice',
@@ -112,8 +120,9 @@ class SalesInvoiceService
 
             $this->cacheService->invalidateStock(
                 storeId: $dto->storeId,
-                productIds: array_map(fn($item) => $item->productId, $dto->items),
+                productIds: $affectedProductIds,
             );
+            $this->cacheService->invalidateProductsDropdown($dto->storeId);
             $this->cacheService->invalidateCustomerBalance($dto->customerId);
             if ($paid > 0) {
                 $this->cacheService->invalidateCashBalance($dto->storeId);
@@ -149,6 +158,7 @@ class SalesInvoiceService
                 StockMovement::create([
                     'store_id'       => $dto->storeId,
                     'product_id'     => $item->product_id,
+                    'variant_id'     => $item->variant_id,
                     'type'           => StockMovementType::IN,
                     'quantity'       => $item->quantity,
                     'reference_type' => 'sales_invoice_cancel',
@@ -215,6 +225,7 @@ class SalesInvoiceService
                 storeId: $dto->storeId,
                 productIds: $invoice->items->pluck('product_id')->all(),
             );
+            $this->cacheService->invalidateProductsDropdown($dto->storeId);
             $this->cacheService->invalidateCustomerBalance((int) $invoice->customer_id);
             if ($invoice->paid_amount > 0) {
                 $this->cacheService->invalidateCashBalance($dto->storeId);
@@ -232,11 +243,13 @@ class SalesInvoiceService
     private function validateStock(CreateSalesInvoiceDTO $dto): void
     {
         foreach ($dto->items as $item) {
-            $product = Product::findOrFail($item->productId);
+            $variant = ProductVariant::where('store_id', $dto->storeId)
+                ->with('product:id,name')
+                ->findOrFail($item->variantId);
 
-            if (! $product->canSell($item->quantity)) {
+            if (! $variant->canSell($item->quantity)) {
                 throw ValidationException::withMessages([
-                    'stock' => "المخزون المتاح من [{$product->name}] هو {$product->current_stock} {$product->unit} فقط.",
+                    'stock' => "المخزون غير كافٍ للمنتج: {$variant->product?->name} — {$variant->name}",
                 ]);
             }
         }

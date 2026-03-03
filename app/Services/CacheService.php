@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Category;
 use App\Models\FinancialTransaction;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -148,17 +149,20 @@ class CacheService
         $key = "store:{$storeId}:products:dropdown";
 
         return Cache::remember($key, self::STATIC_TTL_SECONDS, function () use ($storeId) {
-            return Product::withoutGlobalScopes()
+            return ProductVariant::withoutGlobalScopes()
                 ->where('store_id', $storeId)
+                ->where('is_active', true)
                 ->whereNull('deleted_at')
+                ->with('product:id,name')
+                ->orderBy('product_id')
                 ->orderBy('name')
-                ->get(['id', 'name', 'sku', 'unit', 'sale_price'])
-                ->map(fn(Product $product) => [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'sku' => $product->sku,
-                    'unit' => $product->unit,
-                    'sale_price' => $product->sale_price,
+                ->get(['id', 'store_id', 'product_id', 'name', 'sale_price'])
+                ->map(fn(ProductVariant $variant) => [
+                    'id' => $variant->id,
+                    'product_id' => $variant->product_id,
+                    'name' => ($variant->product?->name ?? '') . ' — ' . $variant->name,
+                    'sale_price' => $variant->sale_price,
+                    'current_stock' => $variant->current_stock,
                 ])
                 ->toArray();
         });

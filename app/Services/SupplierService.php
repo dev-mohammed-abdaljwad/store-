@@ -30,9 +30,9 @@ class SupplierService
         return $this->supplierRepository->save($supplier);
     }
 
-    public function update(int $id, array $data): Supplier
+    public function update(int $id, array $data, int $storeId): Supplier
     {
-        $supplier = $this->supplierRepository->findById($id, $data['store_id']);
+        $supplier = $this->supplierRepository->findById($id, $storeId);
         if (!$supplier) {
             throw ValidationException::withMessages([
                 'supplier' => 'المورد غير موجود.',

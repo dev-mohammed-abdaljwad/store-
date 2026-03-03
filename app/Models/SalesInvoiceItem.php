@@ -9,7 +9,9 @@ class SalesInvoiceItem extends Model
     protected $fillable = [
         'invoice_id',
         'product_id',
+        'variant_id',
         'product_name',
+        'variant_name',
         'quantity',
         'unit_price',
         'total_price',
@@ -29,6 +31,11 @@ class SalesInvoiceItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
     }
 }
 

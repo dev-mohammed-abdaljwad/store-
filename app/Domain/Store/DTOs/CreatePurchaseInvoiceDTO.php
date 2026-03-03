@@ -18,7 +18,7 @@ class CreatePurchaseInvoiceDTO
     {
         $items = array_map(
             fn(array $i) => new PurchaseItemDTO(
-                productId: $i['product_id'],
+                variantId: (int) $i['variant_id'],
                 orderedQuantity: (float) ($i['ordered_quantity'] ?? $i['quantity'] ?? 0),
                 receivedQuantity: (float) ($i['received_quantity'] ?? $i['quantity'] ?? 0),
                 unitPrice: (float) $i['unit_price'],

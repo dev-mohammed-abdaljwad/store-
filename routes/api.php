@@ -64,6 +64,10 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::post('/products',                      [ProductController::class, 'store']);
         Route::put('/products/{id}',                  [ProductController::class, 'update']);
         Route::delete('/products/{id}',               [ProductController::class, 'destroy']);
+        Route::post('/products/{productId}/variants', [ProductController::class, 'storeVariant']);
+        Route::put('/products/{productId}/variants/{variantId}', [ProductController::class, 'updateVariant']);
+        Route::delete('/products/{productId}/variants/{variantId}', [ProductController::class, 'destroyVariant']);
+        Route::get('/products/dropdown',              [ProductController::class, 'dropdown']);
 
         // ── فواتير البيع ──────────────────────────────────────────
         Route::get('/sales-invoices',                 [SalesInvoiceController::class, 'index']);

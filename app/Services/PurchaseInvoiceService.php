@@ -8,7 +8,7 @@ use App\Domain\Store\Enums\CashTransactionType;
 use App\Domain\Store\Enums\PartyType;
 use App\Domain\Store\Enums\StockMovementType;
 use App\Domain\Store\Enums\TransactionType;
-use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseInvoiceItem;
 use App\Models\StockMovement;
@@ -44,13 +44,20 @@ class PurchaseInvoiceService
             ]);
 
             // ── Step 3: حفظ البنود + إضافة المخزون ───────────────
+            $affectedProductIds = [];
             foreach ($dto->items as $item) {
-                $product = Product::findOrFail($item->productId);
+                $variant = ProductVariant::where('store_id', $dto->storeId)
+                    ->with('product:id,name')
+                    ->findOrFail($item->variantId);
+
+                $affectedProductIds[] = (int) $variant->product_id;
 
                 PurchaseInvoiceItem::create([
                     'invoice_id'        => $invoice->id,
-                    'product_id'        => $item->productId,
-                    'product_name'      => $product->name,
+                    'product_id'        => $variant->product_id,
+                    'variant_id'        => $variant->id,
+                    'product_name'      => $variant->product?->name,
+                    'variant_name'      => $variant->name,
                     'ordered_quantity'  => $item->orderedQuantity,
                     'received_quantity' => $item->receivedQuantity,
                     'unit_price'        => $item->unitPrice,
@@ -61,7 +68,8 @@ class PurchaseInvoiceService
                 if ($item->receivedQuantity > 0) {
                     StockMovement::create([
                         'store_id'       => $dto->storeId,
-                        'product_id'     => $item->productId,
+                        'product_id'     => $variant->product_id,
+                        'variant_id'     => $variant->id,
                         'type'           => StockMovementType::IN,
                         'quantity'       => $item->receivedQuantity,
                         'reference_type' => 'purchase_invoice',
@@ -114,8 +122,9 @@ class PurchaseInvoiceService
 
             $this->cacheService->invalidateStock(
                 storeId: $dto->storeId,
-                productIds: array_map(fn($item) => $item->productId, $dto->items),
+                productIds: $affectedProductIds,
             );
+            $this->cacheService->invalidateProductsDropdown($dto->storeId);
             $this->cacheService->invalidateSupplierBalance($dto->supplierId);
             if ($paid > 0) {
                 $this->cacheService->invalidateCashBalance($dto->storeId);
@@ -152,6 +161,7 @@ class PurchaseInvoiceService
                     StockMovement::create([
                         'store_id'       => $dto->storeId,
                         'product_id'     => $item->product_id,
+                        'variant_id'     => $item->variant_id,
                         'type'           => StockMovementType::OUT,
                         'quantity'       => $item->received_quantity,
                         'reference_type' => 'purchase_invoice_cancel',
@@ -206,6 +216,7 @@ class PurchaseInvoiceService
                 storeId: $dto->storeId,
                 productIds: $invoice->items->pluck('product_id')->all(),
             );
+            $this->cacheService->invalidateProductsDropdown($dto->storeId);
             $this->cacheService->invalidateSupplierBalance((int) $invoice->supplier_id);
             if ($invoice->paid_amount > 0) {
                 $this->cacheService->invalidateCashBalance($dto->storeId);
