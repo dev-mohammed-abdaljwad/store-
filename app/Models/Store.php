@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Domain\Store\Enums\StoreStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -15,6 +14,11 @@ class Store extends Model
         'email',
         'phone',
         'address',
+        'slug',
+        'logo_path',
+        'print_header',
+        'print_phone',
+        'print_address',
         'is_active',
     ];
 

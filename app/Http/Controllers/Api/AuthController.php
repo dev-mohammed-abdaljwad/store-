@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -34,18 +36,29 @@ class AuthController extends Controller
                 'role'     => $user->role,
 
             ],
+            'store' => $user->isStoreOwner() ? [
+                'id'       => $user->store?->id,
+                'name'     => $user->store?->name,
+                'logo_url' => $user->store?->logo_path
+                    ? asset('storage/' . $user->store->logo_path)
+                    : null,
+                'slug'     => $user->store?->slug,
+            ] : null,
         ]);
     }
 
     public function logout(): JsonResponse
     {
-        auth()->user()->currentAccessToken()->delete();
+        $token = Auth::user()?->currentAccessToken();
+        if ($token instanceof PersonalAccessToken) {
+            $token->delete();
+        }
 
         return response()->json(['message' => 'تم تسجيل الخروج بنجاح']);
     }
     public function me(): JsonResponse
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
         return response()->json([
             'id'    => $user->id,

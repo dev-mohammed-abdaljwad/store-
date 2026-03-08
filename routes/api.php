@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\StoreSettingsController;
 use App\Http\Controllers\Api\SuperAdmin\CashController;
 use App\Http\Controllers\Api\SuperAdmin\CustomerController;
 use App\Http\Controllers\Api\SuperAdmin\PaymentController;
@@ -36,6 +37,13 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
 
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+
+        // ── إعدادات المتجر ───────────────────────────────────────
+        Route::get('/settings',                  [StoreSettingsController::class, 'show']);
+        Route::put('/settings',                  [StoreSettingsController::class, 'update']);
+        Route::post('/settings/logo',            [StoreSettingsController::class, 'uploadLogo']);
+        Route::delete('/settings/logo',          [StoreSettingsController::class, 'deleteLogo']);
+        Route::put('/settings/password',         [StoreSettingsController::class, 'changePassword']);
 
         // ── العملاء ──────────────────────────────────────────────
         Route::get('/customers',                      [CustomerController::class, 'index']);

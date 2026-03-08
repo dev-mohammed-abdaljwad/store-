@@ -13,10 +13,10 @@ class StoreOwnerUserSeeder extends Seeder
     public function run(): void
     {
         $store = Store::query()->updateOrCreate(
-            ['email' => 'owner-store@ayad-store.test'],
+            ['email' => 'ahmed@agristore.com'],
             [
-                'name' => 'Ayad Demo Store',
-                'owner_name' => 'Store Owner',
+                'name' => 'Ahmed salah Demo Store',
+                'owner_name' => 'Ahmed Salah',
                 'phone' => '01000000000',
                 'address' => 'Main Branch',
                 'is_active' => true,
@@ -24,10 +24,10 @@ class StoreOwnerUserSeeder extends Seeder
         );
 
         User::query()->updateOrCreate(
-            ['email' => 'owner@ayad-store.test'],
+            ['email' => 'ahmed@agristore.com'],
             [
                 'store_id' => $store->id,
-                'name' => 'Store Owner',
+                'name' => 'Ahmed Salah',
                 'password' => Hash::make('password'),
                 'role' => UserRole::STORE_OWNER,
                 'is_active' => true,

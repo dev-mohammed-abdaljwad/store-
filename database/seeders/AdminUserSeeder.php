@@ -12,7 +12,7 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         User::query()->updateOrCreate(
-            ['email' => 'admin@ayad-store.test'],
+            ['email' => 'admin@agistore'],
             [
                 'store_id' => null,
                 'name' => 'System Admin',
