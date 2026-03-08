@@ -31,6 +31,8 @@ class SalesInvoiceController extends Controller
                 'invoice_number',
                 'customer_id',
                 'total_amount',
+                'discount_amount',
+                'net_amount',
                 'paid_amount',
                 'remaining_amount',
                 'status',
@@ -80,10 +82,54 @@ class SalesInvoiceController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $invoice = SalesInvoice::with('items.product', 'items.variant', 'customer', 'createdBy')
+        $invoice = SalesInvoice::with('items.variant.product.category', 'customer', 'createdBy')
             ->findOrFail($id);
 
-        return response()->json($invoice);
+        $items = $invoice->items->map(function ($item) {
+            $category = $item->variant?->product?->category;
+
+            return [
+                'id'            => $item->id,
+                'variant_id'    => $item->variant_id,
+                'product_name'  => $item->product_name,
+                'variant_name'  => $item->variant_name,
+                'category'      => $category?->name ?? '',
+                'category_id'   => $category?->id,
+                'quantity'      => $item->quantity,
+                'unit_price'    => $item->unit_price,
+                'total_amount'  => $item->total_price,
+            ];
+        })->values();
+
+        $summaryByCategory = $items
+            ->groupBy(fn($item) => $item['category_id'] ?? 0)
+            ->map(function ($group) {
+                return [
+                    'category_id'   => $group->first()['category_id'],
+                    'category'      => $group->first()['category'] ?: 'بدون تصنيف',
+                    'items_count'   => $group->count(),
+                    'total_amount'  => round((float) $group->sum('total_amount'), 2),
+                    'total_quantity'=> round((float) $group->sum('quantity'), 3),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'id'               => $invoice->id,
+            'invoice_number'   => $invoice->invoice_number,
+            'total_amount'     => $invoice->total_amount,
+            'discount_amount'  => $invoice->discount_amount,
+            'net_amount'       => $invoice->net_amount,
+            'paid_amount'      => $invoice->paid_amount,
+            'remaining_amount' => $invoice->remaining_amount,
+            'status'           => $invoice->status,
+            'customer'         => $invoice->customer,
+            'notes'            => $invoice->notes,
+            'created_by'       => $invoice->createdBy,
+            'created_at'       => $invoice->created_at,
+            'items'            => $items,
+            'summary_by_category' => $summaryByCategory,
+        ]);
     }
 
     public function cancel(CancelInvoiceRequest $request, int $id): JsonResponse

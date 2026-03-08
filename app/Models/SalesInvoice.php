@@ -18,6 +18,8 @@ class SalesInvoice extends Model
         'invoice_number',
         'customer_id',
         'total_amount',
+        'discount_amount',
+        'net_amount',
         'paid_amount',
         'remaining_amount',
         'status',
@@ -30,6 +32,8 @@ class SalesInvoice extends Model
 
     protected $casts = [
         'total_amount'     => 'float',
+        'discount_amount'  => 'float',
+        'net_amount'       => 'float',
         'paid_amount'      => 'float',
         'remaining_amount' => 'float',
         'status'           => InvoiceStatus::class,

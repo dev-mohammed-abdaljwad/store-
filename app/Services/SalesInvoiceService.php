@@ -29,9 +29,11 @@ class SalesInvoiceService
             $this->validateStock($dto);
 
             // ── Step 2: حساب الإجمالي ─────────────────────────────
-            $total     = $this->calculateTotal($dto->items);
-            $paid      = min($dto->paidAmount, $total);
-            $remaining = $total - $paid;
+            $total = $this->calculateTotal($dto->items);
+            $discount = max($dto->discountAmount, 0);
+            $net = max($total - $discount, 0);
+            $paid = min($dto->paidAmount, $net);
+            $remaining = $net - $paid;
 
             // ── Step 3: حفظ الفاتورة ──────────────────────────────
             $invoice = SalesInvoice::create([
@@ -39,6 +41,8 @@ class SalesInvoiceService
                 'invoice_number'   => $dto->invoiceNumber,
                 'customer_id'      => $dto->customerId,
                 'total_amount'     => $total,
+                'discount_amount'  => $discount,
+                'net_amount'       => $net,
                 'paid_amount'      => $paid,
                 'remaining_amount' => $remaining,
                 'status'           => 'confirmed',
@@ -86,7 +90,7 @@ class SalesInvoiceService
                 'party_type'     => PartyType::CUSTOMER,
                 'party_id'       => $dto->customerId,
                 'type'           => TransactionType::DEBIT,
-                'amount'         => $total,
+                'amount'         => $net,
                 'reference_type' => 'sales_invoice',
                 'reference_id'   => $invoice->id,
                 'description'    => "فاتورة بيع رقم {$invoice->invoice_number}",
@@ -128,7 +132,7 @@ class SalesInvoiceService
                 $this->cacheService->invalidateCashBalance($dto->storeId);
             }
 
-            return $invoice->load('items', 'customer');
+            return $invoice->load('items.variant.product.category', 'customer');
         });
     }
 
@@ -174,7 +178,7 @@ class SalesInvoiceService
                 'party_type'     => PartyType::CUSTOMER,
                 'party_id'       => $invoice->customer_id,
                 'type'           => TransactionType::CREDIT,
-                'amount'         => $invoice->total_amount,
+                'amount'         => $invoice->net_amount,
                 'reference_type' => 'sales_invoice_cancel',
                 'reference_id'   => $invoice->id,
                 'description'    => "إلغاء فاتورة رقم {$invoice->invoice_number}",
@@ -231,7 +235,7 @@ class SalesInvoiceService
                 $this->cacheService->invalidateCashBalance($dto->storeId);
             }
 
-            return $invoice->load('items', 'customer');
+            return $invoice->load('items.variant.product.category', 'customer');
         });
     }
 

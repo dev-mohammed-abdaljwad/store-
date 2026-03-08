@@ -153,7 +153,7 @@ class CacheService
                 ->where('store_id', $storeId)
                 ->where('is_active', true)
                 ->whereNull('deleted_at')
-                ->with('product:id,name')
+                ->with(['product:id,name,category_id', 'product.category:id,name'])
                 ->orderBy('product_id')
                 ->orderBy('name')
                 ->get(['id', 'store_id', 'product_id', 'name', 'sale_price'])
@@ -161,6 +161,8 @@ class CacheService
                     'id' => $variant->id,
                     'product_id' => $variant->product_id,
                     'name' => ($variant->product?->name ?? '') . ' — ' . $variant->name,
+                    'category_id' => $variant->product?->category_id,
+                    'category' => $variant->product?->category?->name,
                     'sale_price' => $variant->sale_price,
                     'current_stock' => $variant->current_stock,
                 ])

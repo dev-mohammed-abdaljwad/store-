@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\StoreSettingsController;
 use App\Http\Controllers\Api\SuperAdmin\CashController;
 use App\Http\Controllers\Api\SuperAdmin\CustomerController;
+use App\Http\Controllers\Api\SuperAdmin\InventoryController;
 use App\Http\Controllers\Api\SuperAdmin\PaymentController;
 use App\Http\Controllers\Api\SuperAdmin\ProductController;
 use App\Http\Controllers\Api\SuperAdmin\AttachmentController;
@@ -76,6 +77,7 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::put('/products/{productId}/variants/{variantId}', [ProductController::class, 'updateVariant']);
         Route::delete('/products/{productId}/variants/{variantId}', [ProductController::class, 'destroyVariant']);
         Route::get('/products/dropdown',              [ProductController::class, 'dropdown']);
+        Route::get('/inventory',                      [InventoryController::class, 'inventory']);
 
         // ── فواتير البيع ──────────────────────────────────────────
         Route::get('/sales-invoices',                 [SalesInvoiceController::class, 'index']);
