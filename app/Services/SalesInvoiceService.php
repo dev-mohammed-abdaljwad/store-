@@ -36,7 +36,7 @@ class SalesInvoiceService
             // ── Step 3: حفظ الفاتورة ──────────────────────────────
             $invoice = SalesInvoice::create([
                 'store_id'         => $dto->storeId,
-                'invoice_number'   => SalesInvoice::generateNumber($dto->storeId),
+                'invoice_number'   => $dto->invoiceNumber,
                 'customer_id'      => $dto->customerId,
                 'total_amount'     => $total,
                 'paid_amount'      => $paid,

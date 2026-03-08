@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1\SalesInvoice;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreSalesInvoiceRequest extends FormRequest
 {
@@ -21,7 +22,16 @@ class StoreSalesInvoiceRequest extends FormRequest
      */
     public function rules(): array
     {
+        $storeId = $this->user()?->store_id;
+
         return [
+            'invoice_number'                 => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('sales_invoices', 'invoice_number')
+                    ->where(fn($query) => $query->where('store_id', $storeId)),
+            ],
             'customer_id'                    => ['required', 'exists:customers,id'],
             'paid_amount'                    => ['required', 'numeric', 'min:0'],
             'notes'                          => ['nullable', 'string'],
@@ -34,6 +44,10 @@ class StoreSalesInvoiceRequest extends FormRequest
         public function messages(): array
         {
             return [
+                'invoice_number.required'      => 'يرجى إدخال رقم الفاتورة.',
+                'invoice_number.string'        => 'رقم الفاتورة يجب أن يكون نصًا.',
+                'invoice_number.max'           => 'رقم الفاتورة يجب ألا يتجاوز 100 حرف.',
+                'invoice_number.unique'        => 'رقم الفاتورة مستخدم بالفعل داخل المتجر.',
                 'customer_id.required'           => 'يرجى تحديد العميل.',
                 'customer_id.exists'             => 'العميل المحدد غير موجود.',
                 'paid_amount.required'           => 'يرجى إدخال المبلغ المدفوع.',

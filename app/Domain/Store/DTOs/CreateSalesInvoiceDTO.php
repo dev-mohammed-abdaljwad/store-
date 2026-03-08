@@ -7,6 +7,7 @@ final class CreateSalesInvoiceDTO
     /** @param InvoiceItemDTO[] $items */
     public function __construct(
         public readonly string $storeId,
+        public readonly string $invoiceNumber,
         public readonly string $customerId,
         public readonly array  $items,
         public readonly float  $paidAmount,
@@ -27,6 +28,7 @@ final class CreateSalesInvoiceDTO
 
         return new self(
             storeId: $storeId,
+            invoiceNumber: $data['invoice_number'],
             customerId: $data['customer_id'],
             items: $items,
             paidAmount: (float) ($data['paid_amount'] ?? 0),

@@ -33,7 +33,7 @@ class PurchaseInvoiceService
             // ── Step 2: حفظ الفاتورة ──────────────────────────────
             $invoice = PurchaseInvoice::create([
                 'store_id'         => $dto->storeId,
-                'invoice_number'   => PurchaseInvoice::generateNumber($dto->storeId),
+                'invoice_number'   => $dto->invoiceNumber,
                 'supplier_id'      => $dto->supplierId,
                 'total_amount'     => $total,
                 'paid_amount'      => $paid,

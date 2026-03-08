@@ -7,6 +7,7 @@ class CreatePurchaseInvoiceDTO
     /** @param PurchaseItemDTO[] $items */
     public function __construct(
         public readonly string $storeId,
+        public readonly string $invoiceNumber,
         public readonly string $supplierId,
         public readonly array  $items,
         public readonly float  $paidAmount,
@@ -28,6 +29,7 @@ class CreatePurchaseInvoiceDTO
 
         return new self(
             storeId: $storeId,
+            invoiceNumber: $data['invoice_number'],
             supplierId: $data['supplier_id'],
             items: $items,
             paidAmount: (float) ($data['paid_amount'] ?? 0),
