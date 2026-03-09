@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Category\StoreCategoryRequest;
 use App\Http\Requests\Api\V1\Product\StoreProductRequest;
 use App\Http\Requests\Api\V1\Product\StoreVariantRequest;
 use App\Http\Requests\Api\V1\Product\UpdateProductRequest;
 use App\Models\Product;
 use App\Services\CacheService;
+use App\Services\CategoryService;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +20,7 @@ class ProductController extends Controller
     public function __construct(
         private ProductService $productService,
         private CacheService $cacheService,
+        private CategoryService $categoryService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -145,6 +148,48 @@ class ProductController extends Controller
         return response()->json([
             'items' => $this->productService->listForDropdown($storeId),
         ]);
+    }
+
+    // Backward compatibility for stale cached routes on older deployments.
+    public function categories(): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+
+        return response()->json([
+            'data' => $this->categoryService->list($storeId),
+        ]);
+    }
+
+    public function categoriesSummary(): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+
+        return response()->json([
+            'categories' => $this->cacheService->getCategories($storeId),
+        ]);
+    }
+
+    public function storeCategory(StoreCategoryRequest $request): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+        $category = $this->categoryService->create($request->validated(), $storeId);
+
+        return response()->json([
+            'message' => 'تم إنشاء التصنيف بنجاح.',
+            'data' => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ],
+        ], 201);
+    }
+
+    public function destroyCategory(int $id): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+        $category = $this->categoryService->findForStore($id, $storeId);
+        $this->categoryService->delete($category);
+
+        return response()->json(['message' => 'تم حذف التصنيف بنجاح.']);
     }
 
 }
