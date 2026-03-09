@@ -32,7 +32,9 @@ class StoreCategoryRequest extends FormRequest
                 'string',
                 'max:255',
                 Rule::unique('categories', 'name')
-                    ->where(fn ($query) => $query->where('store_id', $storeId))
+                    ->where(fn ($query) => $query
+                        ->where('store_id', $storeId)
+                        ->whereNull('deleted_at'))
                     ->ignore($categoryId),
             ],
         ];

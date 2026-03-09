@@ -3,18 +3,35 @@
 namespace App\Services;
 
 use App\Models\Category;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
 
 class CategoryService
 {
+    public function findForStore(int $categoryId, int $storeId): Category
+    {
+        $category = Category::withoutGlobalScopes()
+            ->where('id', $categoryId)
+            ->where('store_id', $storeId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $category) {
+            throw (new ModelNotFoundException())->setModel(Category::class, [$categoryId]);
+        }
+
+        return $category;
+    }
+
     public function __construct(private CacheService $cacheService) {}
 
     // CREATE
     public function create(array $data, int $storeId): Category
-    {
+        {
         $exists = Category::withoutGlobalScopes()
             ->where('store_id', $storeId)
             ->where('name', $data['name'])
+            ->whereNull('deleted_at')
             ->exists();
 
         if ($exists) {
@@ -44,6 +61,7 @@ class CategoryService
             ->where('store_id', $storeId)
             ->where('name', $data['name'])
             ->where('id', '!=', $category->id)
+            ->whereNull('deleted_at')
             ->exists();
 
         if ($exists) {
@@ -63,6 +81,7 @@ class CategoryService
     {
         return Category::withoutGlobalScopes()
             ->where('store_id', $storeId)
+            ->whereNull('deleted_at')
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Category $category) => [
@@ -73,19 +92,16 @@ class CategoryService
     }
 
     // DELETE
-    public function delete(Category $category, int $storeId): void
+    public function delete(Category $category): void
     {
-        if ((int) $category->store_id !== $storeId) {
-            abort(403);
-        }
-
         if ($category->products()->exists()) {
             throw ValidationException::withMessages([
                 'category' => 'لا يمكن حذف تصنيف مرتبط بمنتجات.',
             ]);
         }
 
-        $category->delete();
-        $this->cacheService->invalidateCategories($storeId);
+        // Use hard delete so the row is removed from DB as requested.
+        $category->forceDelete();
+        $this->cacheService->invalidateCategories((int) $category->store_id);
     }
 }
