@@ -39,6 +39,6 @@ class Category extends Model
 
     public function activeProductsCount(): int
     {
-        return $this->products()->count();
+        return $this->products()->where('is_active', true)->count();
     }
 }
