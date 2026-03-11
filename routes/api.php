@@ -9,7 +9,9 @@ use App\Http\Controllers\Api\SuperAdmin\InventoryController;
 use App\Http\Controllers\Api\SuperAdmin\PaymentController;
 use App\Http\Controllers\Api\SuperAdmin\ProductController;
 use App\Http\Controllers\Api\SuperAdmin\AttachmentController;
+use App\Http\Controllers\Api\SuperAdmin\PurchaseReturnController;
 use App\Http\Controllers\Api\SuperAdmin\PurchaseInvoiceController;
+use App\Http\Controllers\Api\SuperAdmin\SalesReturnController;
 use App\Http\Controllers\Api\SuperAdmin\SalesInvoiceController;
 use App\Http\Controllers\Api\SuperAdmin\StoreController;
 use App\Http\Controllers\Api\SuperAdmin\SupplierController;
@@ -83,17 +85,29 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::get('/sales-invoices',                 [SalesInvoiceController::class, 'index']);
         Route::post('/sales-invoices',                [SalesInvoiceController::class, 'store']);
         Route::get('/sales-invoices/{id}',            [SalesInvoiceController::class, 'show']);
+        Route::get('/sales-invoices/{id}/items',      [SalesInvoiceController::class, 'getItems']);
         Route::post('/sales-invoices/{id}/cancel',    [SalesInvoiceController::class, 'cancel']);
+
+        // ── مرتجعات البيع ───────────────────────────────────────
+        Route::get('/sales-returns',                  [SalesReturnController::class, 'index']);
+        Route::post('/sales-returns',                 [SalesReturnController::class, 'store']);
+        Route::get('/sales-returns/{id}',             [SalesReturnController::class, 'show']);
 
         // ── فواتير الشراء ─────────────────────────────────────────
         Route::get('/purchase-invoices',              [PurchaseInvoiceController::class, 'index']);
         Route::post('/purchase-invoices',             [PurchaseInvoiceController::class, 'store']);
         Route::get('/purchase-invoices/{id}',         [PurchaseInvoiceController::class, 'show']);
+        Route::get('/purchase-invoices/{id}/items',   [PurchaseInvoiceController::class, 'getItems']);
         Route::post('/purchase-invoices/{id}/cancel', [PurchaseInvoiceController::class, 'cancel']);
         Route::post('/purchase-invoices/{id}/attachment', [AttachmentController::class, 'upload']);
         Route::get('/purchase-invoices/{id}/attachment', [AttachmentController::class, 'view'])
             ->name('store.purchase-invoices.attachment.view');
         Route::delete('/purchase-invoices/{id}/attachment', [AttachmentController::class, 'delete']);
+
+        // ── مرتجعات الشراء ──────────────────────────────────────
+        Route::get('/purchase-returns',               [PurchaseReturnController::class, 'index']);
+        Route::post('/purchase-returns',              [PurchaseReturnController::class, 'store']);
+        Route::get('/purchase-returns/{id}',          [PurchaseReturnController::class, 'show']);
 
         // ── المدفوعات ─────────────────────────────────────────────
         Route::post('/payments/customer',             [PaymentController::class, 'collectFromCustomer']);

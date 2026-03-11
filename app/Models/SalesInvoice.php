@@ -52,6 +52,11 @@ class SalesInvoice extends Model
         return $this->hasMany(SalesInvoiceItem::class, 'invoice_id');
     }
 
+    public function returns(): HasMany
+    {
+        return $this->hasMany(SalesReturn::class, 'sales_invoice_id');
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -150,4 +150,30 @@ class SalesInvoiceController extends Controller
             'invoice' => $invoice,
         ]);
     }
+
+    public function getItems(int $id): JsonResponse
+    {
+        $invoice = SalesInvoice::with('items.variant.product.category')
+            ->where('store_id', Auth::user()->getStoreId())
+            ->findOrFail($id);
+
+        $items = $invoice->items->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'variant_id' => $item->variant_id,
+                'product_name' => $item->product_name,
+                'variant_name' => $item->variant_name,
+                'quantity' => $item->quantity,
+                'unit_price' => $item->unit_price,
+                'total_amount' => $item->total_price,
+            ];
+        })->values();
+
+        return response()->json([
+            'invoice_id' => $invoice->id,
+            'invoice_number' => $invoice->invoice_number,
+            'customer_id' => $invoice->customer_id,
+            'items' => $items,
+        ]);
+    }
 }

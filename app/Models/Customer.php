@@ -31,6 +31,11 @@ class Customer extends Model
         return $this->hasMany(SalesInvoice::class);
     }
 
+    public function salesReturns(): HasMany
+    {
+        return $this->hasMany(SalesReturn::class);
+    }
+
     public function financialTransactions(): HasMany
     {
         return $this->hasMany(FinancialTransaction::class, 'party_id')
