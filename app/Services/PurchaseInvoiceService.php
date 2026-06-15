@@ -16,6 +16,7 @@ use App\Models\StockMovement;
 use App\Models\FinancialTransaction;
 use App\Models\CashTransaction;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class PurchaseInvoiceService
@@ -357,6 +358,53 @@ class PurchaseInvoiceService
             }
 
             return $invoice->load('items', 'supplier');
+        });
+    }
+
+    public function delete(int $storeId, int $invoiceId, int $deletedBy): PurchaseInvoice
+    {
+        return DB::transaction(function () use ($storeId, $invoiceId) {
+            $invoice = PurchaseInvoice::with('items', 'returns')
+                ->where('store_id', $storeId)
+                ->findOrFail($invoiceId);
+
+            if ($invoice->returns()->exists()) {
+                throw ValidationException::withMessages([
+                    'invoice' => 'لا يمكن حذف الفاتورة لأنها لها مرتجعات مرتبطة بها.',
+                ]);
+            }
+
+            if ($invoice->attachment_path) {
+                Storage::disk('private')->delete($invoice->attachment_path);
+            }
+
+            // حذف الحركات المرتبطة بالفاتورة
+            StockMovement::where('reference_type', 'purchase_invoice')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            StockMovement::where('reference_type', 'purchase_invoice_cancel')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            FinancialTransaction::whereIn('reference_type', [
+                    'purchase_invoice',
+                    'purchase_invoice_payment',
+                    'purchase_invoice_cancel',
+                ])
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            CashTransaction::whereIn('reference_type', [
+                    'purchase_invoice',
+                    'purchase_invoice_cancel',
+                ])
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            $invoice->forceDelete();
+
+            return $invoice;
         });
     }
 

@@ -42,6 +42,15 @@ class PurchaseInvoiceController extends Controller
                 'created_at',
             ])
             ->with('supplier:id,name,phone')
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $search = '%' . $request->search . '%';
+
+                $q->where('invoice_number', 'like', $search)
+                    ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
+                        $supplierQuery->where('name', 'like', $search)
+                            ->orWhere('phone', 'like', $search);
+                    });
+            })
             ->when($request->status,      fn($q) => $q->where('status', $request->status))
             ->when($request->supplier_id, fn($q) => $q->where('supplier_id', $request->supplier_id))
             ->when($from,                 fn($q) => $q->where('created_at', '>=', $from))
@@ -107,6 +116,20 @@ class PurchaseInvoiceController extends Controller
 
         return response()->json([
             'message' => 'تم إلغاء فاتورة الشراء.',
+            'invoice' => $invoice,
+        ]);
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        $invoice = $this->invoiceService->delete(
+            storeId: Auth::user()->getStoreId(),
+            invoiceId: $id,
+            deletedBy: Auth::id(),
+        );
+
+        return response()->json([
+            'message' => 'تم حذف فاتورة الشراء بنجاح.',
             'invoice' => $invoice,
         ]);
     }

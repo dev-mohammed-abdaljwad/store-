@@ -419,6 +419,49 @@ class SalesInvoiceService
         });
     }
 
+    public function delete(int $storeId, int $invoiceId, int $deletedBy): SalesInvoice
+    {
+        return DB::transaction(function () use ($storeId, $invoiceId) {
+            $invoice = SalesInvoice::with('items', 'returns')
+                ->where('store_id', $storeId)
+                ->findOrFail($invoiceId);
+
+            if ($invoice->returns()->exists()) {
+                throw ValidationException::withMessages([
+                    'invoice' => 'لا يمكن حذف الفاتورة لأنها لها مرتجعات مرتبطة بها.',
+                ]);
+            }
+
+            StockMovement::where('reference_type', 'sales_invoice')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            StockMovement::where('reference_type', 'sales_invoice_cancel')
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            FinancialTransaction::whereIn('reference_type', [
+                    'sales_invoice',
+                    'sales_invoice_payment',
+                    'sales_invoice_cancel',
+                    'customer_credit',
+                ])
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            CashTransaction::whereIn('reference_type', [
+                    'sales_invoice',
+                    'sales_invoice_cancel',
+                ])
+                ->where('reference_id', $invoice->id)
+                ->delete();
+
+            $invoice->forceDelete();
+
+            return $invoice;
+        });
+    }
+
     // ── Private Helpers ──────────────────────────────────────────
 
     private function calculateTotal(array $items): float

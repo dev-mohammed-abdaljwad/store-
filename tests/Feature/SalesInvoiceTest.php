@@ -95,4 +95,37 @@ class SalesInvoiceTest extends TestCase
             'status' => 'cancelled',
         ]);
     }
+
+    public function test_can_delete_sales_invoice_and_reuse_number()
+    {
+        $invoice = SalesInvoice::first();
+
+        $response = $this->actingAs($this->owner)->deleteJson("/api/store/sales-invoices/{$invoice->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('message', 'تم حذف فاتورة البيع بنجاح.');
+
+        $this->assertDatabaseMissing('sales_invoices', [
+            'id' => $invoice->id,
+        ]);
+
+        $customer = Customer::first();
+        $variantId = $invoice->items()->first()->variant_id;
+
+        $createResponse = $this->actingAs($this->owner)->postJson('/api/store/sales-invoices', [
+            'invoice_number' => $invoice->invoice_number,
+            'customer_id' => $customer->id,
+            'paid_amount' => 0,
+            'items' => [
+                [
+                    'variant_id' => $variantId,
+                    'quantity' => 1,
+                    'unit_price' => 10,
+                ],
+            ],
+        ]);
+
+        $createResponse->assertStatus(201)
+            ->assertJsonPath('invoice.invoice_number', $invoice->invoice_number);
+    }
 }

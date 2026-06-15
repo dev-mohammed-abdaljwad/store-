@@ -176,6 +176,20 @@ class SalesInvoiceController extends Controller
         ]);
     }
 
+    public function destroy(int $id): JsonResponse
+    {
+        $invoice = $this->invoiceService->delete(
+            storeId: Auth::user()->getStoreId(),
+            invoiceId: $id,
+            deletedBy: Auth::id(),
+        );
+
+        return response()->json([
+            'message' => 'تم حذف فاتورة البيع بنجاح.',
+            'invoice' => $invoice,
+        ]);
+    }
+
     public function getItems(int $id): JsonResponse
     {
         $invoice = SalesInvoice::with('items.variant.product.category')

@@ -151,6 +151,9 @@ class SalesReturnService
                     ->orWhereHas('customer', function ($customerQuery) use ($search) {
                         $customerQuery->where('name', 'like', $search)
                             ->orWhere('phone', 'like', $search);
+                    })
+                    ->orWhereHas('invoice', function ($invoiceQuery) use ($search) {
+                        $invoiceQuery->where('invoice_number', 'like', $search);
                     });
             });
         }
