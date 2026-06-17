@@ -57,3 +57,32 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Running the project (Local and Production)
+
+- Local (quick): copy `.env.example` to `.env`, set local DB and mail settings, then run:
+
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+composer run-script start-local
+```
+
+- Production (recommended): create an `.env` from `.env.production` on your server, set real credentials, then run the deploy optimization commands:
+
+```bash
+composer install --no-dev --optimize-autoloader
+cp .env.production .env
+php artisan key:generate --force
+php artisan migrate --force
+composer run-script deploy
+```
+
+Notes:
+
+- Keep secrets out of source control; use your hosting provider's environment variables or deployment tooling to set production secrets.
+- Set `APP_DEBUG=false` and `APP_ENV=production` on production.
+- Ensure your mail and queue drivers are configured correctly in production (`.env.production`).
+

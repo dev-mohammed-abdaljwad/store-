@@ -71,6 +71,14 @@
             "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
             "@php artisan migrate --graceful --ansi"
         ],
+        "start-local": [
+            "@php artisan serve --host=0.0.0.0 --port=8000"
+        ],
+        "deploy": [
+            "@php artisan config:cache --env=production",
+            "@php artisan route:cache --env=production",
+            "@php artisan view:cache --env=production"
+        ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
         ]

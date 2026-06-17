@@ -5,9 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
 use App\Models\User;
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
@@ -45,6 +49,53 @@ class AuthController extends Controller
                 'slug'     => $user->store?->slug,
             ] : null,
         ]);
+    }
+
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (! $user) {
+            return response()->json(['message' => 'هذا البريد غير مسجل لدينا'], 404);
+        }
+
+        $token = Password::broker()->createToken($user);
+        $user->notify(new ResetPasswordNotification($token));
+
+        $response = ['message' => 'Reset link sent to your email.'];
+
+        // For local testing, return the token in the response when debug is enabled
+        if (config('app.debug')) {
+            $response['token'] = $token;
+        }
+
+        return response()->json($response);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'token' => 'required|string',
+            'password' => 'required|string|confirmed|min:8',
+        ]);
+
+        $status = Password::broker()->reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->password = Hash::make($password);
+                $user->setRememberToken(Str::random(60));
+                $user->save();
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json(['message' => 'Password has been reset successfully.']);
+        }
+
+        return response()->json(['message' => 'Failed to reset password.'], 400);
     }
 
     public function logout(): JsonResponse
