@@ -22,9 +22,12 @@ class PaymentController extends Controller
             createdBy: auth()->id(),
         );
 
-        $this->paymentService->collectFromCustomer($dto);
+        $payment = $this->paymentService->collectFromCustomer($dto);
 
-        return response()->json(['message' => 'تم تسجيل التحصيل بنجاح.']);
+        return response()->json([
+            'message' => 'تم تسجيل التحصيل بنجاح.',
+            'payment' => $payment ? $payment->toArray() : null,
+        ]);
     }
 
     public function payToSupplier(RecordPaymentRequest $request): JsonResponse
@@ -35,9 +38,12 @@ class PaymentController extends Controller
             createdBy: auth()->id(),
         );
 
-        $this->paymentService->payToSupplier($dto);
+        $payment = $this->paymentService->payToSupplier($dto);
 
-        return response()->json(['message' => 'تم تسجيل الدفعة بنجاح.']);
+        return response()->json([
+            'message' => 'تم تسجيل الدفعة بنجاح.',
+            'payment' => $payment ? $payment->toArray() : null,
+        ]);
     }
 
     public function listCustomerPayments(Request $request, int $customerId): JsonResponse
@@ -50,6 +56,33 @@ class PaymentController extends Controller
             $customerId,
             $perPage
         );
+
+        return response()->json($page);
+    }
+
+    public function listAllPayments(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->query('per_page', 50);
+
+        $page = $this->paymentService->listAllPayments(auth()->user()->getStoreId(), $perPage, $request->query('page', 1));
+
+        return response()->json($page);
+    }
+
+    public function listAllCustomerPayments(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->query('per_page', 50);
+
+        $page = $this->paymentService->listPaymentsByPartyType(auth()->user()->getStoreId(), \App\Domain\Store\Enums\PartyType::CUSTOMER, $perPage, $request->query('page', 1));
+
+        return response()->json($page);
+    }
+
+    public function listAllSupplierPayments(Request $request): JsonResponse
+    {
+        $perPage = (int) $request->query('per_page', 50);
+
+        $page = $this->paymentService->listPaymentsByPartyType(auth()->user()->getStoreId(), \App\Domain\Store\Enums\PartyType::SUPPLIER, $perPage, $request->query('page', 1));
 
         return response()->json($page);
     }

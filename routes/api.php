@@ -121,6 +121,9 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::post('/payments/supplier',             [PaymentController::class, 'payToSupplier']);
         Route::get('/payments/customers/{id}',        [PaymentController::class, 'listCustomerPayments']);
         Route::get('/payments/suppliers/{id}',        [PaymentController::class, 'listSupplierPayments']);
+        Route::get('/payments',                       [PaymentController::class, 'listAllPayments']);
+        Route::get('/payments/customers',             [PaymentController::class, 'listAllCustomerPayments']);
+        Route::get('/payments/suppliers',             [PaymentController::class, 'listAllSupplierPayments']);
         Route::put('/payments/{id}',                  [PaymentController::class, 'updatePayment']);
         Route::delete('/payments/{id}',               [PaymentController::class, 'deletePayment']);
 
