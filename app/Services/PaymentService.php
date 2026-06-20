@@ -277,7 +277,7 @@ class PaymentService
         });
 
         // Merge and sort by preferred date desc
-        $all = $payments->merge($legacy)->sortByDesc(fn($i) => $i['sort_date'])->values();
+        $all = collect($payments)->merge(collect($legacy))->sortByDesc(fn($i) => $i['sort_date'])->values();
 
         $total = $all->count();
         $items = $all->forPage($page, $perPage)->values();
@@ -349,7 +349,7 @@ class PaymentService
                 ];
             });
 
-        $all = $payments->merge($legacy)->sortByDesc(fn($i) => $i['sort_date'])->values();
+        $all = collect($payments)->merge(collect($legacy))->sortByDesc(fn($i) => $i['sort_date'])->values();
 
         $total = $all->count();
         $items = $all->forPage($page, $perPage)->values();

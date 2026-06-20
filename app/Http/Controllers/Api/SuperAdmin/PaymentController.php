@@ -57,7 +57,7 @@ class PaymentController extends Controller
             $perPage
         );
 
-        return response()->json($page);
+        return response()->json($page->toArray());
     }
 
     public function listAllPayments(Request $request): JsonResponse
@@ -66,7 +66,7 @@ class PaymentController extends Controller
 
         $page = $this->paymentService->listAllPayments(auth()->user()->getStoreId(), $perPage, $request->query('page', 1));
 
-        return response()->json($page);
+        return response()->json($page->toArray());
     }
 
     public function listAllCustomerPayments(Request $request): JsonResponse
@@ -75,7 +75,7 @@ class PaymentController extends Controller
 
         $page = $this->paymentService->listPaymentsByPartyType(auth()->user()->getStoreId(), \App\Domain\Store\Enums\PartyType::CUSTOMER, $perPage, $request->query('page', 1));
 
-        return response()->json($page);
+        return response()->json($page->toArray());
     }
 
     public function listAllSupplierPayments(Request $request): JsonResponse
@@ -84,7 +84,7 @@ class PaymentController extends Controller
 
         $page = $this->paymentService->listPaymentsByPartyType(auth()->user()->getStoreId(), \App\Domain\Store\Enums\PartyType::SUPPLIER, $perPage, $request->query('page', 1));
 
-        return response()->json($page);
+        return response()->json($page->toArray());
     }
 
     public function listSupplierPayments(Request $request, int $supplierId): JsonResponse
@@ -98,7 +98,7 @@ class PaymentController extends Controller
             $perPage
         );
 
-        return response()->json($page);
+        return response()->json($page->toArray());
     }
 
     public function updatePayment(Request $request, int $paymentId): JsonResponse
