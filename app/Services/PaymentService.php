@@ -147,15 +147,55 @@ class PaymentService
     {
         $partyTypeValue = $partyType instanceof PartyType ? $partyType->value : $partyType;
 
-        $query = FinancialTransaction::query()
-            ->where('store_id', $storeId)
+        // Gather financial transactions and prefer the cash transaction's `transaction_date` when available
+        $fts = FinancialTransaction::where('store_id', $storeId)
             ->where('party_type', $partyTypeValue)
             ->where('party_id', $partyId)
-            // include direct payments as well as invoice payment entries so they can be edited/deleted
             ->whereIn('reference_type', ['direct_payment', 'sales_invoice_payment', 'purchase_invoice_payment'])
-            ->orderByDesc('created_at');
+            ->get();
 
-        return $query->paginate($perPage);
+        // Bulk-load party name for this party type
+        $partyIds = $fts->pluck('party_id')->filter()->unique()->values()->all();
+        $names = [];
+        if ($partyTypeValue === PartyType::CUSTOMER->value) {
+            $names = Customer::whereIn('id', $partyIds)->pluck('name', 'id')->toArray();
+        } else {
+            $names = Supplier::whereIn('id', $partyIds)->pluck('name', 'id')->toArray();
+        }
+
+        $items = $fts->map(function ($ft) use ($storeId, $names) {
+            $cash = CashTransaction::where('store_id', $storeId)
+                ->where('reference_type', $ft->reference_type)
+                ->where('reference_id', $ft->reference_id)
+                ->first();
+
+            $paymentDate = $cash?->transaction_date?->toDateString() ?? $ft->created_at?->toDateString();
+            $sortDate = $cash?->transaction_date ?? $ft->created_at;
+
+            return [
+                'id' => $ft->id,
+                'payment_number' => $ft->receipt_number,
+                'payment_date' => $paymentDate,
+                'amount' => $ft->amount,
+                'description' => $ft->description,
+                'party_type' => $ft->party_type,
+                'party_id' => $ft->party_id,
+                'party_name' => $names[$ft->party_id] ?? null,
+                'reference_type' => $ft->reference_type,
+                'reference_id' => $ft->reference_id,
+                'created_at' => $ft->created_at,
+                'sort_date' => $sortDate,
+            ];
+        })->sortByDesc(fn($i) => $i['sort_date'])->values();
+
+        $total = $items->count();
+        $page = (int) request()->query('page', 1);
+        $paginated = $items->forPage($page, $perPage)->values();
+
+        return new LengthAwarePaginator($paginated, $total, $perPage, $page, [
+            'path' => request()->url(),
+            'query' => request()->query(),
+        ]);
     }
 
     /**
@@ -165,44 +205,79 @@ class PaymentService
     public function listAllPayments(int $storeId, int $perPage = 50, int $page = 1): LengthAwarePaginator
     {
         // Fetch Payment records
-        $payments = Payment::where('store_id', $storeId)
-            ->get()
-            ->map(function ($p) {
-                return [
-                    'id' => $p->id,
-                    'payment_number' => $p->payment_number,
-                    'payment_date' => $p->payment_date?->toDateString(),
-                    'amount' => $p->amount,
-                    'description' => $p->description,
-                    'party_type' => $p->party_type,
-                    'party_id' => $p->party_id,
-                    'reference_type' => 'payment',
-                    'reference_id' => $p->id,
-                    'created_at' => $p->created_at,
-                ];
-            });
+        $paymentsModels = Payment::where('store_id', $storeId)->get();
 
-        // Fetch legacy financial transactions that are direct payments
-        $legacy = FinancialTransaction::where('store_id', $storeId)
+        // collect party ids per type for bulk name lookup
+        $customerIds = $paymentsModels->where('party_type', PartyType::CUSTOMER)->pluck('party_id')->filter()->unique()->values()->all();
+        $supplierIds = $paymentsModels->where('party_type', PartyType::SUPPLIER)->pluck('party_id')->filter()->unique()->values()->all();
+
+        $customerNames = Customer::whereIn('id', $customerIds)->pluck('name', 'id')->toArray();
+        $supplierNames = Supplier::whereIn('id', $supplierIds)->pluck('name', 'id')->toArray();
+
+        $payments = $paymentsModels->map(function ($p) use ($customerNames, $supplierNames) {
+            $partyName = null;
+            if ($p->party_type === PartyType::CUSTOMER) $partyName = $customerNames[$p->party_id] ?? null;
+            if ($p->party_type === PartyType::SUPPLIER) $partyName = $supplierNames[$p->party_id] ?? null;
+
+            return [
+                'id' => $p->id,
+                'payment_number' => $p->payment_number,
+                'payment_date' => $p->payment_date?->toDateString(),
+                'amount' => $p->amount,
+                'description' => $p->description,
+                'party_type' => $p->party_type,
+                'party_id' => $p->party_id,
+                'party_name' => $partyName,
+                'reference_type' => 'payment',
+                'reference_id' => $p->id,
+                'created_at' => $p->created_at,
+                'sort_date' => $p->payment_date ?? $p->created_at,
+            ];
+        });
+
+        // Fetch legacy financial transactions that are direct payments and try to prefer cash transaction date
+        $legacyModels = FinancialTransaction::where('store_id', $storeId)
             ->where('reference_type', 'direct_payment')
-            ->get()
-            ->map(function ($ft) {
-                return [
-                    'id' => $ft->id,
-                    'payment_number' => $ft->receipt_number,
-                    'payment_date' => $ft->created_at?->toDateString(),
-                    'amount' => $ft->amount,
-                    'description' => $ft->description,
-                    'party_type' => $ft->party_type,
-                    'party_id' => $ft->party_id,
-                    'reference_type' => $ft->reference_type,
-                    'reference_id' => $ft->reference_id,
-                    'created_at' => $ft->created_at,
-                ];
-            });
+            ->get();
 
-        // Merge and sort by created_at desc
-        $all = $payments->merge($legacy)->sortByDesc(fn($i) => $i['created_at'])->values();
+        // bulk load names for legacy entries
+        $legacyCustomerIds = $legacyModels->where('party_type', PartyType::CUSTOMER)->pluck('party_id')->filter()->unique()->values()->all();
+        $legacySupplierIds = $legacyModels->where('party_type', PartyType::SUPPLIER)->pluck('party_id')->filter()->unique()->values()->all();
+
+        $legacyCustomerNames = Customer::whereIn('id', $legacyCustomerIds)->pluck('name', 'id')->toArray();
+        $legacySupplierNames = Supplier::whereIn('id', $legacySupplierIds)->pluck('name', 'id')->toArray();
+
+        $legacy = $legacyModels->map(function ($ft) use ($storeId, $legacyCustomerNames, $legacySupplierNames) {
+            $cash = CashTransaction::where('store_id', $storeId)
+                ->where('reference_type', $ft->reference_type)
+                ->where('reference_id', $ft->reference_id)
+                ->first();
+
+            $paymentDate = $cash?->transaction_date?->toDateString() ?? $ft->created_at?->toDateString();
+            $sortDate = $cash?->transaction_date ?? $ft->created_at;
+
+            $partyName = null;
+            if ($ft->party_type === PartyType::CUSTOMER) $partyName = $legacyCustomerNames[$ft->party_id] ?? null;
+            if ($ft->party_type === PartyType::SUPPLIER) $partyName = $legacySupplierNames[$ft->party_id] ?? null;
+
+            return [
+                'id' => $ft->id,
+                'payment_number' => $ft->receipt_number,
+                'payment_date' => $paymentDate,
+                'amount' => $ft->amount,
+                'description' => $ft->description,
+                'party_type' => $ft->party_type,
+                'party_id' => $ft->party_id,
+                'party_name' => $partyName,
+                'reference_type' => $ft->reference_type,
+                'reference_id' => $ft->reference_id,
+                'created_at' => $ft->created_at,
+                'sort_date' => $sortDate,
+            ];
+        });
+
+        // Merge and sort by preferred date desc
+        $all = $payments->merge($legacy)->sortByDesc(fn($i) => $i['sort_date'])->values();
 
         $total = $all->count();
         $items = $all->forPage($page, $perPage)->values();
@@ -222,31 +297,47 @@ class PaymentService
 
         $payments = Payment::where('store_id', $storeId)
             ->where('party_type', $partyTypeValue)
-            ->get()
-            ->map(function ($p) {
-                return [
-                    'id' => $p->id,
-                    'payment_number' => $p->payment_number,
-                    'payment_date' => $p->payment_date?->toDateString(),
-                    'amount' => $p->amount,
-                    'description' => $p->description,
-                    'party_type' => $p->party_type,
-                    'party_id' => $p->party_id,
-                    'reference_type' => 'payment',
-                    'reference_id' => $p->id,
-                    'created_at' => $p->created_at,
-                ];
-            });
+            ->get();
+
+        $partyIds = $payments->pluck('party_id')->filter()->unique()->values()->all();
+        $names = $partyTypeValue === PartyType::CUSTOMER->value
+            ? Customer::whereIn('id', $partyIds)->pluck('name', 'id')->toArray()
+            : Supplier::whereIn('id', $partyIds)->pluck('name', 'id')->toArray();
+
+        $payments = $payments->map(function ($p) use ($names) {
+            return [
+                'id' => $p->id,
+                'payment_number' => $p->payment_number,
+                'payment_date' => $p->payment_date?->toDateString(),
+                'amount' => $p->amount,
+                'description' => $p->description,
+                'party_type' => $p->party_type,
+                'party_id' => $p->party_id,
+                'party_name' => $names[$p->party_id] ?? null,
+                'reference_type' => 'payment',
+                'reference_id' => $p->id,
+                'created_at' => $p->created_at,
+                'sort_date' => $p->payment_date ?? $p->created_at,
+            ];
+        });
 
         $legacy = FinancialTransaction::where('store_id', $storeId)
             ->where('party_type', $partyTypeValue)
             ->where('reference_type', 'direct_payment')
             ->get()
-            ->map(function ($ft) {
+            ->map(function ($ft) use ($storeId) {
+                $cash = CashTransaction::where('store_id', $storeId)
+                    ->where('reference_type', $ft->reference_type)
+                    ->where('reference_id', $ft->reference_id)
+                    ->first();
+
+                $paymentDate = $cash?->transaction_date?->toDateString() ?? $ft->created_at?->toDateString();
+                $sortDate = $cash?->transaction_date ?? $ft->created_at;
+
                 return [
                     'id' => $ft->id,
                     'payment_number' => $ft->receipt_number,
-                    'payment_date' => $ft->created_at?->toDateString(),
+                    'payment_date' => $paymentDate,
                     'amount' => $ft->amount,
                     'description' => $ft->description,
                     'party_type' => $ft->party_type,
@@ -254,10 +345,11 @@ class PaymentService
                     'reference_type' => $ft->reference_type,
                     'reference_id' => $ft->reference_id,
                     'created_at' => $ft->created_at,
+                    'sort_date' => $sortDate,
                 ];
             });
 
-        $all = $payments->merge($legacy)->sortByDesc(fn($i) => $i['created_at'])->values();
+        $all = $payments->merge($legacy)->sortByDesc(fn($i) => $i['sort_date'])->values();
 
         $total = $all->count();
         $items = $all->forPage($page, $perPage)->values();

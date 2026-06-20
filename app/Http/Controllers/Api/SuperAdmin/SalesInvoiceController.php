@@ -23,8 +23,8 @@ class SalesInvoiceController extends Controller
     {
         $perPage = $this->resolvePerPage($request, 10);
 
-        $from = $request->from ? $request->from . ' 00:00:00' : null;
-        $to = $request->to ? $request->to . ' 23:59:59' : null;
+        $from = $request->from ? $request->from : null;
+        $to = $request->to ? $request->to : null;
 
         $invoices = SalesInvoice::query()
             ->select([
@@ -59,9 +59,9 @@ class SalesInvoiceController extends Controller
             )
             ->when($request->status,      fn($q) => $q->where('status', $request->status))
             ->when($request->customer_id, fn($q) => $q->where('customer_id', $request->customer_id))
-            ->when($from,                 fn($q) => $q->where('created_at', '>=', $from))
-            ->when($to,                   fn($q) => $q->where('created_at', '<=', $to))
-            ->orderByDesc('created_at')
+            ->when($from,                 fn($q) => $q->where('invoice_date', '>=', $from))
+            ->when($to,                   fn($q) => $q->where('invoice_date', '<=', $to))
+            ->orderByDesc('invoice_date')
             ->paginate($perPage)
             ->withQueryString();
 
