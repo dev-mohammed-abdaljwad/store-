@@ -186,7 +186,7 @@ class PaymentService
                 'created_at' => $ft->created_at,
                 'sort_date' => $sortDate,
             ];
-        })->sortByDesc(fn($i) => $i['sort_date'])->values();
+        })->sortByDesc(fn($i) => $i['created_at'])->values();
 
         $total = $items->count();
         $page = (int) request()->query('page', 1);
@@ -277,7 +277,7 @@ class PaymentService
         });
 
         // Merge and sort by preferred date desc
-        $all = collect($payments)->merge(collect($legacy))->sortByDesc(fn($i) => $i['sort_date'])->values();
+        $all = collect($payments)->merge(collect($legacy))->sortByDesc(fn($i) => $i['created_at'])->values();
 
         $total = $all->count();
         $items = $all->forPage($page, $perPage)->values();
@@ -349,7 +349,7 @@ class PaymentService
                 ];
             });
 
-        $all = collect($payments)->merge(collect($legacy))->sortByDesc(fn($i) => $i['sort_date'])->values();
+        $all = collect($payments)->merge(collect($legacy))->sortByDesc(fn($i) => $i['created_at'])->values();
 
         $total = $all->count();
         $items = $all->forPage($page, $perPage)->values();

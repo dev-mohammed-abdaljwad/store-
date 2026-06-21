@@ -15,6 +15,7 @@ use App\Models\SalesInvoice;
 use App\Models\PurchaseInvoice;
 use App\Models\CashTransaction;
 use App\Models\FinancialTransaction;
+use App\Models\Payment;
 use App\Domain\Store\Enums\InvoiceStatus;
 
 class SimulationSeeder extends Seeder
@@ -243,6 +244,52 @@ class SimulationSeeder extends Seeder
                 ]);
             }
         }
+
+        // Create 100 test payment collection records for pagination testing
+        $firstCustomer = $customers[0] ?? null;
+        if ($firstCustomer) {
+            for ($i = 1; $i <= 100; $i++) {
+                $amount = rand(500, 15000);
+                $paymentDate = now()->subDays(101 - $i)->toDateString();
+                
+                $payment = Payment::create([
+                    'store_id' => $this->storeId,
+                    'party_type' => 'customer',
+                    'party_id' => $firstCustomer->id,
+                    'amount' => $amount,
+                    'payment_number' => sprintf('PM-TEST-%04d', $i),
+                    'payment_date' => $paymentDate,
+                    'description' => "دفعة تجريبية رقم {$i} لاختبار Pagination",
+                    'receipt_number' => sprintf('RC-TEST-%04d', $i),
+                    'created_by' => $this->createdByUserId,
+                ]);
+
+                FinancialTransaction::create([
+                    'store_id'       => $this->storeId,
+                    'party_type'     => 'customer',
+                    'party_id'       => $firstCustomer->id,
+                    'type'           => 'credit',
+                    'amount'         => $amount,
+                    'reference_type' => 'payment',
+                    'reference_id'   => $payment->id,
+                    'description'    => "تحصيل نقدي مباشر من العميل: {$firstCustomer->id} (تجريبي رقم {$i})",
+                    'receipt_number' => sprintf('RC-TEST-%04d', $i),
+                    'created_by'     => $this->createdByUserId,
+                ]);
+
+                CashTransaction::create([
+                    'store_id'         => $this->storeId,
+                    'type'             => 'in',
+                    'amount'           => $amount,
+                    'reference_type'   => 'payment',
+                    'reference_id'     => $payment->id,
+                    'description'      => "تحصيل نقدي مباشر من العميل: {$firstCustomer->id} (تجريبي رقم {$i})",
+                    'transaction_date' => $paymentDate,
+                    'created_by'       => $this->createdByUserId,
+                ]);
+            }
+        }
+
         return $customers;
     }
 
