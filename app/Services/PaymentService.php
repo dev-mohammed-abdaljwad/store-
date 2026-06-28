@@ -375,12 +375,12 @@ class PaymentService
 
                 $oldAmount = $payment->amount;
 
-                $payment->fill(array_filter([
-                    'amount' => $data['amount'] ?? null,
-                    'description' => $data['description'] ?? null,
-                    'receipt_number' => $data['receipt_number'] ?? null,
-                    'payment_date' => $data['transaction_date'] ?? null,
-                ]));
+                $fillData = [];
+                if (array_key_exists('amount', $data) && $data['amount'] !== null)          $fillData['amount']         = $data['amount'];
+                if (array_key_exists('description', $data) && $data['description'] !== null) $fillData['description']     = $data['description'];
+                if (array_key_exists('receipt_number', $data) && $data['receipt_number'] !== null) $fillData['receipt_number'] = $data['receipt_number'];
+                if (array_key_exists('transaction_date', $data) && $data['transaction_date'] !== null) $fillData['payment_date'] = $data['transaction_date'];
+                $payment->fill($fillData);
                 $payment->save();
 
                 // update financial transactions pointing to this payment
@@ -421,9 +421,10 @@ class PaymentService
             }
 
             // fallback to older behavior: find by financial transaction id
+            // Note: older records may have reference_type='payment' as well, so include it here
             $ft = FinancialTransaction::where('store_id', $storeId)
                 ->where('id', $paymentId)
-                ->whereIn('reference_type', ['direct_payment', 'sales_invoice_payment', 'purchase_invoice_payment'])
+                ->whereIn('reference_type', ['direct_payment', 'sales_invoice_payment', 'purchase_invoice_payment', 'payment'])
                 ->firstOrFail();
 
             if (isset($data['amount']) && $data['amount'] <= 0) {
@@ -432,11 +433,11 @@ class PaymentService
 
             $oldAmount = $ft->amount;
 
-            $ft->fill(array_filter([
-                'amount' => $data['amount'] ?? null,
-                'description' => $data['description'] ?? null,
-                'receipt_number' => $data['receipt_number'] ?? null,
-            ]));
+            $ftData = [];
+            if (array_key_exists('amount', $data) && $data['amount'] !== null)          $ftData['amount']         = $data['amount'];
+            if (array_key_exists('description', $data) && $data['description'] !== null) $ftData['description']     = $data['description'];
+            if (array_key_exists('receipt_number', $data) && $data['receipt_number'] !== null) $ftData['receipt_number'] = $data['receipt_number'];
+            $ft->fill($ftData);
 
             $ft->save();
 
