@@ -367,7 +367,14 @@ class PaymentService
     {
         DB::transaction(function () use ($storeId, $paymentId, $data) {
             // If a Payment entity exists with this id, update it and linked transactions
-            $payment = Payment::where('store_id', $storeId)->find($paymentId);
+            // But ONLY if this is not a legacy direct_payment record (reference_id = 0)
+            $payment = null;
+            $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
+            
+            if ($ft && $ft->reference_type === 'payment' && $ft->reference_id > 0) {
+                $payment = Payment::where('store_id', $storeId)->find($ft->reference_id);
+            }
+
             if ($payment) {
                 if (isset($data['amount']) && $data['amount'] <= 0) {
                     throw ValidationException::withMessages(['amount' => 'المبلغ يجب أن يكون أكبر من صفر.']);
@@ -389,11 +396,11 @@ class PaymentService
                     ->where('reference_id', $payment->id)
                     ->get();
 
-                foreach ($fts as $ft) {
-                    $ft->amount = $data['amount'] ?? $ft->amount;
-                    if (isset($data['description'])) $ft->description = $data['description'];
-                    if (isset($data['receipt_number'])) $ft->receipt_number = $data['receipt_number'];
-                    $ft->save();
+                foreach ($fts as $ftItem) {
+                    $ftItem->amount = $data['amount'] ?? $ftItem->amount;
+                    if (isset($data['description'])) $ftItem->description = $data['description'];
+                    if (isset($data['receipt_number'])) $ftItem->receipt_number = $data['receipt_number'];
+                    $ftItem->save();
                 }
 
                 // update cash transactions
@@ -420,12 +427,12 @@ class PaymentService
                 return;
             }
 
-            // fallback to older behavior: find by financial transaction id
-            // Note: older records may have reference_type='payment' as well, so include it here
-            $ft = FinancialTransaction::where('store_id', $storeId)
-                ->where('id', $paymentId)
-                ->whereIn('reference_type', ['direct_payment', 'sales_invoice_payment', 'purchase_invoice_payment', 'payment'])
-                ->firstOrFail();
+            // Fallback: If no Payment exists (legacy direct_payment or reference_id = 0)
+            if (!$ft) {
+                $ft = FinancialTransaction::where('store_id', $storeId)
+                    ->where('id', $paymentId)
+                    ->firstOrFail();
+            }
 
             if (isset($data['amount']) && $data['amount'] <= 0) {
                 throw ValidationException::withMessages(['amount' => 'المبلغ يجب أن يكون أكبر من صفر.']);
@@ -441,12 +448,21 @@ class PaymentService
 
             $ft->save();
 
-            // try to find corresponding cash transaction: match by same reference_type/reference_id
+            // try to find corresponding cash transaction: match by same reference_type/reference_id and old amount
             $cash = CashTransaction::where('store_id', $storeId)
                 ->where('reference_type', $ft->reference_type)
                 ->where('reference_id', $ft->reference_id)
                 ->where('amount', $oldAmount)
                 ->first();
+
+            // If reference_id is 0, we can also try to match using description or creation date if multiple transactions exist
+            if (!$cash && $ft->reference_id == 0) {
+                $cash = CashTransaction::where('store_id', $storeId)
+                    ->where('reference_type', $ft->reference_type)
+                    ->where('amount', $oldAmount)
+                    ->where('created_by', $ft->created_by)
+                    ->first();
+            }
 
             if ($cash) {
                 $cash->amount = $data['amount'] ?? $cash->amount;
@@ -458,6 +474,28 @@ class PaymentService
             // if this is an invoice payment, adjust the invoice paid/remaining amounts
             if (in_array($ft->reference_type, ['sales_invoice_payment', 'purchase_invoice_payment'])) {
                 $delta = ($data['amount'] ?? $ft->amount) - $oldAmount;
+                if ($delta !== 0) {
+                    if ($ft->reference_type === 'sales_invoice_payment') {
+                        $invoice = \App\Models\SalesInvoice::where('store_id', $storeId)->find($ft->reference_id);
+                    } else {
+                        $invoice = \App\Models\PurchaseInvoice::where('store_id', $storeId)->find($ft->reference_id);
+                    }
+
+                    if ($invoice) {
+                        $invoice->paid_amount = ($invoice->paid_amount ?? 0) + $delta;
+                        $invoice->remaining_amount = max(0, ($invoice->total_amount ?? 0) - $invoice->paid_amount);
+                        $invoice->save();
+                    }
+                }
+            }
+
+            // invalidate caches
+            if ($ft->party_type === PartyType::CUSTOMER) {
+                $this->cacheService->invalidateCustomerBalance($ft->party_id);
+            } else {
+                $this->cacheService->invalidateSupplierBalance($ft->party_id);
+            }
+            $this->cacheService->invalidateCashBalance($storeId);
                 if ($delta !== 0) {
                     if ($ft->reference_type === 'sales_invoice_payment') {
                         $invoice = \App\Models\SalesInvoice::where('store_id', $storeId)->find($ft->reference_id);
@@ -530,7 +568,7 @@ class PaymentService
             // fallback to older behavior: delete by financial transaction id
             $ft = FinancialTransaction::where('store_id', $storeId)
                 ->where('id', $paymentId)
-                ->whereIn('reference_type', ['direct_payment', 'sales_invoice_payment', 'purchase_invoice_payment'])
+                ->whereIn('reference_type', ['direct_payment', 'sales_invoice_payment', 'purchase_invoice_payment', 'payment'])
                 ->firstOrFail();
 
             // try to find corresponding cash transaction by matching reference_type/reference_id/amount
@@ -539,6 +577,15 @@ class PaymentService
                 ->where('reference_id', $ft->reference_id)
                 ->where('amount', $ft->amount)
                 ->first();
+
+            // fallback for cash transaction if reference_id is 0
+            if (!$cash && $ft->reference_id == 0) {
+                $cash = CashTransaction::where('store_id', $storeId)
+                    ->where('reference_type', $ft->reference_type)
+                    ->where('amount', $ft->amount)
+                    ->where('created_by', $ft->created_by)
+                    ->first();
+            }
 
             $partyId = $ft->party_id;
             $partyType = $ft->party_type;
