@@ -386,33 +386,37 @@ class PaymentService
                 if (array_key_exists('amount', $data) && $data['amount'] !== null)          $fillData['amount']         = $data['amount'];
                 if (array_key_exists('description', $data) && $data['description'] !== null) $fillData['description']     = $data['description'];
                 if (array_key_exists('receipt_number', $data) && $data['receipt_number'] !== null) $fillData['receipt_number'] = $data['receipt_number'];
+                if (array_key_exists('payment_date', $data) && $data['payment_date'] !== null) $fillData['payment_date'] = $data['payment_date'];
                 if (array_key_exists('transaction_date', $data) && $data['transaction_date'] !== null) $fillData['payment_date'] = $data['transaction_date'];
                 $payment->fill($fillData);
                 $payment->save();
 
                 // update financial transactions pointing to this payment
+                // add payemtn data to this updates
                 $fts = FinancialTransaction::where('store_id', $storeId)
-                    ->where('reference_type', 'payment')
+                    ->whereIn('reference_type', ['payment', 'direct_payment'])
                     ->where('reference_id', $payment->id)
                     ->get();
 
                 foreach ($fts as $ftItem) {
                     $ftItem->amount = $data['amount'] ?? $ftItem->amount;
                     if (isset($data['description'])) $ftItem->description = $data['description'];
+                    if (isset($data['payment_date'])) $ftItem->payment_date = $data['payment_date'];                    
                     if (isset($data['receipt_number'])) $ftItem->receipt_number = $data['receipt_number'];
                     $ftItem->save();
                 }
 
                 // update cash transactions
                 $cashs = CashTransaction::where('store_id', $storeId)
-                    ->where('reference_type', 'payment')
+                    ->whereIn('reference_type', ['payment', 'direct_payment'])
                     ->where('reference_id', $payment->id)
                     ->get();
 
                 foreach ($cashs as $cash) {
                     $cash->amount = $data['amount'] ?? $cash->amount;
-                    if (isset($data['description'])) $cash->description = $data['description'];
+                    if (isset($data['payment_date'])) $cash->payment_date = $data['payment_date'];                    
                     if (isset($data['transaction_date'])) $cash->transaction_date = $data['transaction_date'];
+                    if (isset($data['description'])) $cash->description = $data['description'];
                     $cash->save();
                 }
 
@@ -505,28 +509,27 @@ class PaymentService
     public function deleteDirectPayment(int $storeId, int $paymentId): void
     {
         DB::transaction(function () use ($storeId, $paymentId) {
-            // If a Payment entity exists with this id, delete payment and linked transactions
-            $payment = Payment::where('store_id', $storeId)->find($paymentId);
+            // First find the FinancialTransaction — the $paymentId is always the FT id
+            $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
+
+            // If it has a real Payment entity linked, delete that too
+            $payment = null;
+            if ($ft && $ft->reference_type === 'payment' && $ft->reference_id > 0) {
+                $payment = Payment::where('store_id', $storeId)->find($ft->reference_id);
+            }
+
             if ($payment) {
-                // delete financial transactions referencing this payment
-                $fts = FinancialTransaction::where('store_id', $storeId)
-                    ->where('reference_type', 'payment')
+                // delete ALL financial transactions referencing this payment (payment or direct_payment)
+                FinancialTransaction::where('store_id', $storeId)
+                    ->whereIn('reference_type', ['payment', 'direct_payment'])
                     ->where('reference_id', $payment->id)
-                    ->get();
+                    ->delete();
 
-                foreach ($fts as $ft) {
-                    $ft->delete();
-                }
-
-                // delete cash transactions referencing this payment
-                $cashs = CashTransaction::where('store_id', $storeId)
-                    ->where('reference_type', 'payment')
+                // delete ALL cash transactions referencing this payment
+                CashTransaction::where('store_id', $storeId)
+                    ->whereIn('reference_type', ['payment', 'direct_payment'])
                     ->where('reference_id', $payment->id)
-                    ->get();
-
-                foreach ($cashs as $cash) {
-                    $cash->delete();
-                }
+                    ->delete();
 
                 $partyType = $payment->party_type;
                 $partyId = $payment->party_id;
@@ -543,13 +546,14 @@ class PaymentService
                 return;
             }
 
-            // fallback to older behavior: delete by financial transaction id
-            $ft = FinancialTransaction::where('store_id', $storeId)
-                ->where('id', $paymentId)
-                ->whereIn('reference_type', ['direct_payment', 'sales_invoice_payment', 'purchase_invoice_payment', 'payment'])
-                ->firstOrFail();
+            // Fallback: legacy record (direct_payment with reference_id = 0, or no Payment entity)
+            if (!$ft) {
+                $ft = FinancialTransaction::where('store_id', $storeId)
+                    ->where('id', $paymentId)
+                    ->firstOrFail();
+            }
 
-            // try to find corresponding cash transaction by matching reference_type/reference_id/amount
+            // try to find corresponding cash transaction
             $cash = CashTransaction::where('store_id', $storeId)
                 ->where('reference_type', $ft->reference_type)
                 ->where('reference_id', $ft->reference_id)
@@ -559,7 +563,7 @@ class PaymentService
             // fallback for cash transaction if reference_id is 0
             if (!$cash && $ft->reference_id == 0) {
                 $cash = CashTransaction::where('store_id', $storeId)
-                    ->where('reference_type', $ft->reference_type)
+                    ->whereIn('reference_type', ['payment', 'direct_payment'])
                     ->where('amount', $ft->amount)
                     ->where('created_by', $ft->created_by)
                     ->first();
