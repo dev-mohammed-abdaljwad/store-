@@ -291,20 +291,41 @@ class PaymentService
     /**
      * List payments filtered by party type (customer or supplier).
      */
-    public function listPaymentsByPartyType(int $storeId, PartyType|string $partyType, int $perPage = 50, int $page = 1): LengthAwarePaginator
+    public function listPaymentsByPartyType(int $storeId, PartyType|string $partyType, int $perPage = 50, int $page = 1, ?string $search = null): LengthAwarePaginator
     {
         $partyTypeValue = $partyType instanceof PartyType ? $partyType->value : $partyType;
 
-        $payments = Payment::where('store_id', $storeId)
-            ->where('party_type', $partyTypeValue)
-            ->get();
+        $paymentsQuery = Payment::where('store_id', $storeId)
+            ->where('party_type', $partyTypeValue);
 
-        $partyIds = $payments->pluck('party_id')->filter()->unique()->values()->all();
+        if (!empty($search)) {
+            $paymentsQuery->where(function ($q) use ($search) {
+                $q->where('payment_number', 'like', "%{$search}%")
+                  ->orWhere('receipt_number', 'like', "%{$search}%");
+            });
+        }
+
+        $paymentsModels = $paymentsQuery->get();
+
+        $legacyQuery = FinancialTransaction::where('store_id', $storeId)
+            ->where('party_type', $partyTypeValue)
+            ->where('reference_type', 'direct_payment');
+
+        if (!empty($search)) {
+            $legacyQuery->where('receipt_number', 'like', "%{$search}%");
+        }
+
+        $legacyModels = $legacyQuery->get();
+
+        $partyIds = $paymentsModels->pluck('party_id')
+            ->merge($legacyModels->pluck('party_id'))
+            ->filter()->unique()->values()->all();
+
         $names = $partyTypeValue === PartyType::CUSTOMER->value
             ? Customer::whereIn('id', $partyIds)->pluck('name', 'id')->toArray()
             : Supplier::whereIn('id', $partyIds)->pluck('name', 'id')->toArray();
 
-        $payments = $payments->map(function ($p) use ($names) {
+        $payments = $paymentsModels->map(function ($p) use ($names) {
             return [
                 'id' => $p->id,
                 'payment_number' => $p->payment_number,
@@ -321,33 +342,30 @@ class PaymentService
             ];
         });
 
-        $legacy = FinancialTransaction::where('store_id', $storeId)
-            ->where('party_type', $partyTypeValue)
-            ->where('reference_type', 'direct_payment')
-            ->get()
-            ->map(function ($ft) use ($storeId) {
-                $cash = CashTransaction::where('store_id', $storeId)
-                    ->where('reference_type', $ft->reference_type)
-                    ->where('reference_id', $ft->reference_id)
-                    ->first();
+        $legacy = $legacyModels->map(function ($ft) use ($storeId, $names) {
+            $cash = CashTransaction::where('store_id', $storeId)
+                ->where('reference_type', $ft->reference_type)
+                ->where('reference_id', $ft->reference_id)
+                ->first();
 
-                $paymentDate = $cash?->transaction_date?->toDateString() ?? $ft->created_at?->toDateString();
-                $sortDate = $cash?->transaction_date ?? $ft->created_at;
+            $paymentDate = $cash?->transaction_date?->toDateString() ?? $ft->created_at?->toDateString();
+            $sortDate = $cash?->transaction_date ?? $ft->created_at;
 
-                return [
-                    'id' => $ft->id,
-                    'payment_number' => $ft->receipt_number,
-                    'payment_date' => $paymentDate,
-                    'amount' => $ft->amount,
-                    'description' => $ft->description,
-                    'party_type' => $ft->party_type,
-                    'party_id' => $ft->party_id,
-                    'reference_type' => $ft->reference_type,
-                    'reference_id' => $ft->reference_id,
-                    'created_at' => $ft->created_at,
-                    'sort_date' => $sortDate,
-                ];
-            });
+            return [
+                'id' => $ft->id,
+                'payment_number' => $ft->receipt_number,
+                'payment_date' => $paymentDate,
+                'amount' => $ft->amount,
+                'description' => $ft->description,
+                'party_type' => $ft->party_type,
+                'party_id' => $ft->party_id,
+                'party_name' => $names[$ft->party_id] ?? null,
+                'reference_type' => $ft->reference_type,
+                'reference_id' => $ft->reference_id,
+                'created_at' => $ft->created_at,
+                'sort_date' => $sortDate,
+            ];
+        });
 
         $all = collect($payments)->merge(collect($legacy))->sortByDesc(fn($i) => $i['created_at'])->values();
 

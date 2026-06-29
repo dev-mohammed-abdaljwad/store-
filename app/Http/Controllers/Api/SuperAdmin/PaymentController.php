@@ -72,8 +72,15 @@ class PaymentController extends Controller
     public function listAllCustomerPayments(Request $request): JsonResponse
     {
         $perPage = (int) $request->query('per_page', 50);
+        $search = $request->query('search');
 
-        $page = $this->paymentService->listPaymentsByPartyType(auth()->user()->getStoreId(), \App\Domain\Store\Enums\PartyType::CUSTOMER, $perPage, $request->query('page', 1));
+        $page = $this->paymentService->listPaymentsByPartyType(
+            auth()->user()->getStoreId(),
+            \App\Domain\Store\Enums\PartyType::CUSTOMER,
+            $perPage,
+            $request->query('page', 1),
+            $search
+        );
 
         return response()->json($page->toArray());
     }
@@ -81,8 +88,15 @@ class PaymentController extends Controller
     public function listAllSupplierPayments(Request $request): JsonResponse
     {
         $perPage = (int) $request->query('per_page', 50);
+        $search = $request->query('search');
 
-        $page = $this->paymentService->listPaymentsByPartyType(auth()->user()->getStoreId(), \App\Domain\Store\Enums\PartyType::SUPPLIER, $perPage, $request->query('page', 1));
+        $page = $this->paymentService->listPaymentsByPartyType(
+            auth()->user()->getStoreId(),
+            \App\Domain\Store\Enums\PartyType::SUPPLIER,
+            $perPage,
+            $request->query('page', 1),
+            $search
+        );
 
         return response()->json($page->toArray());
     }
@@ -108,6 +122,7 @@ class PaymentController extends Controller
             'description' => 'nullable|string',
             'receipt_number' => 'nullable|string',
             'transaction_date' => 'nullable|date',
+            'payment_date'=>'nullable|date'
         ]);
 
         $this->paymentService->updateDirectPayment(auth()->user()->getStoreId(), $paymentId, $data);
