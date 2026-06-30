@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum', 'role:store_owner', 'store.active'])
         Route::get('/sales-invoices',                 [SalesInvoiceController::class, 'index']);
         Route::post('/sales-invoices',                [SalesInvoiceController::class, 'store']);
         Route::get('/sales-invoices/reps-stats',      [SalesInvoiceController::class, 'repsStats']);
+        Route::get('/sales-invoices/category-stats',  [SalesInvoiceController::class, 'categoryStats']);
         Route::get('/sales-invoices/{id}',            [SalesInvoiceController::class, 'show']);
         Route::put('/sales-invoices/{id}',            [SalesInvoiceController::class, 'update']);
         Route::delete('/sales-invoices/{id}',         [SalesInvoiceController::class, 'destroy']);

@@ -14,6 +14,7 @@ use App\Services\SalesInvoiceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SalesInvoiceController extends Controller
 {
@@ -281,5 +282,85 @@ class SalesInvoiceController extends Controller
         usort($stats, fn($a, $b) => $b['sales_amount'] <=> $a['sales_amount']);
 
         return response()->json($stats);
+    }
+
+    /**
+     * Dashboard: sales grouped by category + approximate profit (sales - purchases).
+     * Query params: from (date), to (date)
+     */
+    public function categoryStats(Request $request): JsonResponse
+    {
+        $storeId = Auth::user()->getStoreId();
+        $from    = $request->from ?? null;
+        $to      = $request->to   ?? null;
+
+        // ── مبيعات مجمعة بالتصنيف ─────────────────────────────────
+        $categoryRows = DB::table('sales_invoice_items as sii')
+            ->join('sales_invoices as si', 'si.id', '=', 'sii.invoice_id')
+            ->join('product_variants as pv', 'pv.id', '=', 'sii.variant_id')
+            ->join('products as p', 'p.id', '=', 'pv.product_id')
+            ->leftJoin('categories as c', 'c.id', '=', 'p.category_id')
+            ->where('si.store_id', $storeId)
+            ->where('si.status', 'confirmed')
+            ->when($from, fn($q) => $q->where('si.invoice_date', '>=', $from))
+            ->when($to,   fn($q) => $q->where('si.invoice_date', '<=', $to))
+            ->whereNull('si.deleted_at')
+            ->selectRaw('
+                COALESCE(c.name, \'بدون تصنيف\') as category,
+                c.id as category_id,
+                SUM(sii.total_price) as total_sales,
+                SUM(sii.quantity) as total_quantity,
+                COUNT(DISTINCT si.id) as invoices_count
+            ')
+            ->groupBy('c.id', 'c.name')
+            ->orderByDesc('total_sales')
+            ->get();
+
+        $totalSales = (float) $categoryRows->sum('total_sales');
+
+        $categories = $categoryRows->map(fn($row) => [
+            'category'       => $row->category,
+            'category_id'    => $row->category_id,
+            'total_sales'    => round((float) $row->total_sales, 2),
+            'total_quantity' => round((float) $row->total_quantity, 3),
+            'invoices_count' => (int) $row->invoices_count,
+            'percentage'     => $totalSales > 0
+                ? round((float) $row->total_sales / $totalSales * 100, 1)
+                : 0,
+        ])->values();
+
+        // ── إجمالي مبيعات + مشتريات للفترة (لحساب الربح التقريبي) ──
+        $salesTotal = (float) DB::table('sales_invoices')
+            ->where('store_id', $storeId)
+            ->where('status', 'confirmed')
+            ->when($from, fn($q) => $q->where('invoice_date', '>=', $from))
+            ->when($to,   fn($q) => $q->where('invoice_date', '<=', $to))
+            ->whereNull('deleted_at')
+            ->sum('net_amount');
+
+        $purchasesTotal = (float) DB::table('purchase_invoices')
+            ->where('store_id', $storeId)
+            ->where('status', 'confirmed')
+            ->when($from, fn($q) => $q->where('invoice_date', '>=', $from))
+            ->when($to,   fn($q) => $q->where('invoice_date', '<=', $to))
+            ->whereNull('deleted_at')
+            ->sum('net_amount');
+
+        $grossProfit        = round($salesTotal - $purchasesTotal, 2);
+        $grossProfitMargin  = $salesTotal > 0
+            ? round($grossProfit / $salesTotal * 100, 1)
+            : 0;
+
+        return response()->json([
+            'period' => [
+                'from' => $from,
+                'to'   => $to,
+            ],
+            'sales_total'         => round($salesTotal, 2),
+            'purchases_total'     => round($purchasesTotal, 2),
+            'gross_profit'        => $grossProfit,
+            'gross_profit_margin' => $grossProfitMargin,
+            'categories'          => $categories,
+        ]);
     }
 }
