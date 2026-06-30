@@ -344,7 +344,7 @@ class SalesInvoiceController extends Controller
             ->when($from, fn($q) => $q->where('invoice_date', '>=', $from))
             ->when($to,   fn($q) => $q->where('invoice_date', '<=', $to))
             ->whereNull('deleted_at')
-            ->sum('net_amount');
+            ->sum('total_amount');
 
         $grossProfit        = round($salesTotal - $purchasesTotal, 2);
         $grossProfitMargin  = $salesTotal > 0
