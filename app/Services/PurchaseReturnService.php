@@ -146,11 +146,8 @@ class PurchaseReturnService
 
         if (! empty($filters['search'])) {
             $search = '%' . $filters['search'] . '%';
-            $query->where(function ($q) use ($search) {
-                $q->where('return_number', 'like', $search)
-                    ->orWhereHas('invoice', function ($invoiceQuery) use ($search) {
-                        $invoiceQuery->where('invoice_number', 'like', $search);
-                    });
+            $query->whereHas('invoice', function ($invoiceQuery) use ($search) {
+                $invoiceQuery->where('invoice_number', 'like', $search);
             });
         }
 
