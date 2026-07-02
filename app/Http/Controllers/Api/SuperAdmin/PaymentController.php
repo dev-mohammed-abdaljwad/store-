@@ -125,14 +125,16 @@ class PaymentController extends Controller
             'payment_date'=>'nullable|date'
         ]);
 
-        $this->paymentService->updateDirectPayment(auth()->user()->getStoreId(), $paymentId, $data);
+        $type = $request->query('type');
+        $this->paymentService->updateDirectPayment(auth()->user()->getStoreId(), $paymentId, $data, $type);
 
         return response()->json(['message' => 'تم تحديث الفاتورة بنجاح.']);
     }
 
-    public function deletePayment(int $paymentId): JsonResponse
+    public function deletePayment(Request $request, int $paymentId): JsonResponse
     {
-        $this->paymentService->deleteDirectPayment(auth()->user()->getStoreId(), $paymentId);
+        $type = $request->query('type');
+        $this->paymentService->deleteDirectPayment(auth()->user()->getStoreId(), $paymentId, $type);
 
         return response()->json(['message' => 'تم حذف الفاتورة بنجاح.']);
     }

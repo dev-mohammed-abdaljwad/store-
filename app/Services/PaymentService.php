@@ -378,19 +378,26 @@ class PaymentService
         ]);
     }
 
-    /**
-     * Update a direct payment (financial transaction) and try to update matching cash transaction.
-     */
-    public function updateDirectPayment(int $storeId, int $paymentId, array $data): void
+    public function updateDirectPayment(int $storeId, int $paymentId, array $data, ?string $type = null): void
     {
-        DB::transaction(function () use ($storeId, $paymentId, $data) {
-            // If a Payment entity exists with this id, update it and linked transactions
-            // But ONLY if this is not a legacy direct_payment record (reference_id = 0)
+        DB::transaction(function () use ($storeId, $paymentId, $data, $type) {
+            // The $paymentId may be a FinancialTransaction id or a Payment id.
+            // First try to resolve an FT record and its linked Payment entity.
             $payment = null;
-            $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
-            
-            if ($ft && $ft->reference_type === 'payment' && $ft->reference_id > 0) {
-                $payment = Payment::where('store_id', $storeId)->find($ft->reference_id);
+            $ft = null;
+
+            if ($type === 'payment') {
+                $payment = Payment::where('store_id', $storeId)->find($paymentId);
+            } elseif ($type === 'direct_payment') {
+                $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
+            } else {
+                $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
+                if ($ft && $ft->reference_type === 'payment' && $ft->reference_id > 0) {
+                    $payment = Payment::where('store_id', $storeId)->find($ft->reference_id);
+                }
+                if (!$ft) {
+                    $payment = Payment::where('store_id', $storeId)->find($paymentId);
+                }
             }
 
             if ($payment) {
@@ -523,19 +530,26 @@ class PaymentService
         });
     }
 
-    /**
-     * Delete a direct payment and its associated cash transaction if found.
-     */
-    public function deleteDirectPayment(int $storeId, int $paymentId): void
+    public function deleteDirectPayment(int $storeId, int $paymentId, ?string $type = null): void
     {
-        DB::transaction(function () use ($storeId, $paymentId) {
-            // First find the FinancialTransaction — the $paymentId is always the FT id
-            $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
-
-            // If it has a real Payment entity linked, delete that too
+        DB::transaction(function () use ($storeId, $paymentId, $type) {
+            // Try to resolve the payment target by FT id first. Some list endpoints return
+            // Payment ids directly while others return FinancialTransaction ids.
             $payment = null;
-            if ($ft && $ft->reference_type === 'payment' && $ft->reference_id > 0) {
-                $payment = Payment::where('store_id', $storeId)->find($ft->reference_id);
+            $ft = null;
+
+            if ($type === 'payment') {
+                $payment = Payment::where('store_id', $storeId)->find($paymentId);
+            } elseif ($type === 'direct_payment') {
+                $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
+            } else {
+                $ft = FinancialTransaction::where('store_id', $storeId)->find($paymentId);
+                if ($ft && $ft->reference_type === 'payment' && $ft->reference_id > 0) {
+                    $payment = Payment::where('store_id', $storeId)->find($ft->reference_id);
+                }
+                if (!$ft) {
+                    $payment = Payment::where('store_id', $storeId)->find($paymentId);
+                }
             }
 
             if ($payment) {
